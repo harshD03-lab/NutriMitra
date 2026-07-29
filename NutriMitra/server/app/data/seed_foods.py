@@ -8,7 +8,7 @@ and inserts rows into the food_items table via SQLAlchemy.
 import csv
 import re
 
-from app.core.database import SessionLocal
+from app.core.database import Base, SessionLocal, engine
 from app.models.food_item import FoodItem
 
 COLUMN_ALIASES: dict[str, list[str]] = {
@@ -80,6 +80,7 @@ def _build_col_map(headers: list[str]) -> dict[str, str]:
 
 
 def load_icmr_data(csv_path: str) -> int:
+    Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     count = 0
     try:
@@ -95,7 +96,7 @@ def load_icmr_data(csv_path: str) -> int:
                 print(f"  Headers: {reader.fieldnames}")
                 return 0
             if missing:
-                print(f"Note: missing columns → {', '.join(sorted(missing))}")
+                print(f"Note: missing columns -> {', '.join(sorted(missing))}")
 
             for row in reader:
                 mapped: dict[str, str] = {}
