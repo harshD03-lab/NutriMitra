@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "NutriMitra/client/src/api.ts": {
-    "mtime": 1785519877.5249379,
-    "ast_hash": "becb5a991cda76bf0a54c87cc4806502",
+    "mtime": 1785519053.1078382,
+    "ast_hash": "fc2af95199dcdfa76b69d1d0cee4e573",
     "semantic_hash": ""
   },
   "NutriMitra/client/src/main.tsx": {
@@ -40,8 +40,8 @@
     "semantic_hash": ""
   },
   "NutriMitra/client/src/pages/DashboardPage.tsx": {
-    "mtime": 1785519938.433786,
-    "ast_hash": "6a0cac199fc8de788af2cdfb578bb2ae",
+    "mtime": 1785513035.4860399,
+    "ast_hash": "dd29a077be03ec881ce85e6886bd211a",
     "semantic_hash": ""
   },
   "NutriMitra/client/src/pages/RegisterPage.tsx": {
@@ -85,9 +85,9 @@
     "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
   "NutriMitra/server/app/api/v1/api.py": {
-    "mtime": 1785519840.8850205,
-    "ast_hash": "3a94cdb154f4e98b254e2ed82b9f3f72",
-    "semantic_hash": ""
+    "mtime": 1784904831.724674,
+    "ast_hash": "58a8464612f8bc9f3b05d6525b1d818b",
+    "semantic_hash": "58a8464612f8bc9f3b05d6525b1d818b"
   },
   "NutriMitra/server/app/api/v1/routes/__init__.py": {
     "mtime": 1784904807.721279,
@@ -105,9 +105,9 @@
     "semantic_hash": ""
   },
   "NutriMitra/server/app/api/v1/routes/recommendations.py": {
-    "mtime": 1785519856.59784,
-    "ast_hash": "27e39c22b37096e8bf2e35814b5e89f5",
-    "semantic_hash": ""
+    "mtime": 1785001260.1069028,
+    "ast_hash": "75e284f900d260050ebdab80686fb3f0",
+    "semantic_hash": "75e284f900d260050ebdab80686fb3f0"
   },
   "NutriMitra/server/app/api/v1/routes/users.py": {
     "mtime": 1784904818.3213964,
@@ -224,6 +224,11 @@
     "ast_hash": "45f7a0260c0bb7a8ef5efbaef1c21ab0",
     "semantic_hash": ""
   },
+  "NutriMitra/server/static/assets/index-CSK9ol_y.js": {
+    "mtime": 1785519183.9525087,
+    "ast_hash": "b28c374a7baa25b021bc3b05efa9b6c8",
+    "semantic_hash": ""
+  },
   "AGENTS.md": {
     "mtime": 1784746097.2608502,
     "ast_hash": "21ceb6533048be51308e69e7b74a35cf",
@@ -240,8 +245,8 @@
     "semantic_hash": ""
   },
   "NutriMitra/server/static/index.html": {
-    "mtime": 1785519949.7452185,
-    "ast_hash": "8c76ab2a72315d292c1a8be0dcc6550a",
+    "mtime": 1785519183.9535053,
+    "ast_hash": "3009d57c6067557729c531bc4641b832",
     "semantic_hash": ""
   },
   "README.md": {
@@ -282,21 +287,6 @@
   "NutriMitra/server/static/icons.svg": {
     "mtime": 1784738463.1747453,
     "ast_hash": "3b4fcfcf393eca4d264dca4a4663bc37",
-    "semantic_hash": ""
-  },
-  "NutriMitra/server/app/api/v1/routes/plans.py": {
-    "mtime": 1785519833.4246063,
-    "ast_hash": "b0cac913784879623960b70beb4f54b5",
-    "semantic_hash": ""
-  },
-  "NutriMitra/server/app/schemas/plan.py": {
-    "mtime": 1785519824.2388241,
-    "ast_hash": "332c78f80763c70754bcbaff0b159ca8",
-    "semantic_hash": ""
-  },
-  "NutriMitra/server/static/assets/index-Ib34DWp8.js": {
-    "mtime": 1785519949.7432187,
-    "ast_hash": "9cc5f7e3a92f6e0cdadfdca26395b07d",
     "semantic_hash": ""
   }
 }
