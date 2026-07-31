@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException
 
@@ -20,8 +21,15 @@ app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
 app.include_router(v1_router)
 
 static_dir = Path(__file__).resolve().parent.parent / "static"
-if static_dir.exists():
-    app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
+assets_dir = static_dir / "assets"
+if static_dir.exists() and assets_dir.exists():
+    app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa(full_path: str):
+        if full_path.startswith("v1/") or full_path.startswith("assets/"):
+            raise HTTPException(status_code=404, detail="Not found")
+        return FileResponse(static_dir / "index.html")
 else:
     @app.get("/")
     async def root():

@@ -66,3 +66,38 @@ export interface RecommendationResponse {
 export function getRecommendations(token: string, profile: Record<string, unknown>) {
   return request('POST', '/recommendations/', profile, token) as Promise<RecommendationResponse>
 }
+
+export interface FoodItem {
+  id: number
+  name: string
+  category: string | null
+  energy_kcal: number | null
+  protein_g: number | null
+  carbs_g: number | null
+  fat_g: number | null
+  fiber_g: number | null
+  calcium_mg: number | null
+  iron_mg: number | null
+  vitamin_c_mg: number | null
+  vitamin_a_mcg: number | null
+  folate_mcg: number | null
+  zinc_mg: number | null
+  serving_size_g: number | null
+  suitable_for: string | null
+}
+
+export interface FoodListResponse {
+  total: number
+  skip: number
+  limit: number
+  items: FoodItem[]
+}
+
+export function getFoods(token: string, params: Record<string, string | number>) {
+  const query = new URLSearchParams(params as Record<string, string>).toString()
+  return request('GET', `/food/?${query}`, undefined, token) as Promise<FoodListResponse>
+}
+
+export function getFoodCategories(token: string) {
+  return request('GET', '/food/categories', undefined, token) as Promise<string[]>
+}

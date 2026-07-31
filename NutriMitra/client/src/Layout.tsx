@@ -10,6 +10,7 @@ export default function Layout() {
           {token ? (
             <>
               <Link to="/dashboard" className="hover:underline">Dashboard</Link>
+              <Link to="/foods" className="hover:underline">Foods</Link>
               <button
                 onClick={() => { localStorage.clear(); location.href = '/' }}
                 className="hover:underline cursor-pointer"
