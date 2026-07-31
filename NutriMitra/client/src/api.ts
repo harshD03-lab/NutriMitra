@@ -101,3 +101,35 @@ export function getFoods(token: string, params: Record<string, string | number>)
 export function getFoodCategories(token: string) {
   return request('GET', '/food/categories', undefined, token) as Promise<string[]>
 }
+
+export interface PlanSummary {
+  id: number
+  total_calories: number | null
+  total_protein: number | null
+  total_carbs: number | null
+  total_fat: number | null
+  item_count: number
+  created_at: string | null
+}
+
+export interface SavedPlan {
+  id: number
+  meal_plan: MealPlan[]
+  total_calories: number | null
+  total_protein: number | null
+  total_carbs: number | null
+  total_fat: number | null
+  created_at: string | null
+}
+
+export function getPlans(token: string) {
+  return request('GET', '/plans/', undefined, token) as Promise<PlanSummary[]>
+}
+
+export function getPlan(token: string, planId: number) {
+  return request('GET', `/plans/${planId}`, undefined, token) as Promise<SavedPlan>
+}
+
+export function deletePlan(token: string, planId: number) {
+  return request('DELETE', `/plans/${planId}`, undefined, token)
+}

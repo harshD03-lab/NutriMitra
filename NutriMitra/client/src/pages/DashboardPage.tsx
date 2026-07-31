@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getMe, getRecommendations } from '../api'
-import type { UserProfile, RecommendationResponse, MealPlan, MealItem } from '../api'
+import { getMe, getRecommendations, getPlans, getPlan, deletePlan } from '../api'
+import type { UserProfile, RecommendationResponse, MealPlan, MealItem, PlanSummary, SavedPlan } from '../api'
 
 export default function DashboardPage() {
   const nav = useNavigate()
@@ -12,11 +12,19 @@ export default function DashboardPage() {
   const [plan, setPlan] = useState<RecommendationResponse | null>(null)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState('')
+  const [savedPlans, setSavedPlans] = useState<PlanSummary[]>([])
+  const [viewingPlan, setViewingPlan] = useState<SavedPlan | null>(null)
+
+  const loadHistory = (t: string) => {
+    getPlans(t)
+      .then(setSavedPlans)
+      .catch(() => {})
+  }
 
   useEffect(() => {
     if (!token) { nav('/'); return }
     getMe(token)
-      .then(setUser)
+      .then(u => { setUser(u); loadHistory(token) })
       .catch(() => { localStorage.clear(); nav('/') })
       .finally(() => setLoading(false))
   }, [])
@@ -47,6 +55,8 @@ export default function DashboardPage() {
       }
       const data = await getRecommendations(token, profile)
       setPlan(data)
+      setViewingPlan(null)
+      loadHistory(token)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to generate plan')
     } finally {
@@ -54,7 +64,40 @@ export default function DashboardPage() {
     }
   }
 
+  const openSavedPlan = async (planId: number) => {
+    if (!token) return
+    try {
+      const saved = await getPlan(token, planId)
+      setViewingPlan(saved)
+      setPlan(null)
+      setError('')
+    } catch {
+      setError('Failed to load saved plan')
+    }
+  }
+
+  const removeSavedPlan = async (planId: number) => {
+    if (!token) return
+    try {
+      await deletePlan(token, planId)
+      setSavedPlans(p => p.filter(x => x.id !== planId))
+      if (viewingPlan?.id === planId) setViewingPlan(null)
+    } catch {
+      setError('Failed to delete plan')
+    }
+  }
+
   const canGenerate = Boolean(user.age && user.gender && user.height_cm && user.weight_kg && user.activity_level)
+  const shownPlan = viewingPlan
+    ? {
+        meal_plan: viewingPlan.meal_plan,
+        total_calories: viewingPlan.total_calories,
+        total_protein: viewingPlan.total_protein,
+        total_carbs: viewingPlan.total_carbs,
+        total_fat: viewingPlan.total_fat,
+        explanation: null,
+      } as RecommendationResponse
+    : plan
 
   return (
     <div className="space-y-6">
@@ -99,10 +142,67 @@ export default function DashboardPage() {
           <p className="text-xs text-gray-500 mt-2">Fill in age, gender, height, weight and activity to generate a plan.</p>
         )}
         {error && <p className="text-red-600 text-sm mt-3">{error}</p>}
-        {plan && <MealPlanView plan={plan} />}
+        {shownPlan && (
+          <div>
+            {viewingPlan && (
+              <p className="text-xs text-gray-500 mt-2 mb-2">
+                Viewing saved plan from {formatDate(viewingPlan.created_at)}{' '}
+                <button onClick={() => { setViewingPlan(null); setPlan(null) }} className="text-emerald-600 hover:underline cursor-pointer">
+                  Clear
+                </button>
+              </p>
+            )}
+            <MealPlanView plan={shownPlan} />
+          </div>
+        )}
+      </section>
+
+      <section className="bg-white rounded-xl shadow-sm border p-5">
+        <h2 className="text-lg font-semibold mb-3">Plan History</h2>
+        {savedPlans.length === 0 ? (
+          <p className="text-xs text-gray-500">No saved plans yet. Generate a meal plan to save it here.</p>
+        ) : (
+          <ul className="divide-y">
+            {savedPlans.map(p => (
+              <li key={p.id} className="py-3 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-sm font-bold">
+                    {p.item_count}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">{formatDate(p.created_at)}</p>
+                    <p className="text-xs text-gray-500">
+                      {p.total_calories ?? 0} kcal | P {p.total_protein ?? 0}g | C {p.total_carbs ?? 0}g | F {p.total_fat ?? 0}g
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={() => openSavedPlan(p.id)}
+                    className="text-sm text-emerald-600 hover:underline cursor-pointer"
+                  >
+                    View
+                  </button>
+                  <button
+                    onClick={() => removeSavedPlan(p.id)}
+                    className="text-sm text-red-600 hover:underline cursor-pointer"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </div>
   )
+}
+
+function formatDate(iso: string | null) {
+  if (!iso) return 'Unknown date'
+  const d = new Date(iso)
+  return isNaN(d.getTime()) ? iso : d.toLocaleString()
 }
 
 function Field({ label, value, onChange, placeholder }: {

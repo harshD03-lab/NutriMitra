@@ -1,8 +1,12 @@
+import json
+from datetime import datetime
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.v1.routes.users import get_current_user
 from app.core.database import get_db
+from app.models.diet_plan import DietPlan
 from app.models.food_item import FoodItem
 from app.models.user import User
 from app.schemas.recommendation import (
@@ -123,11 +127,27 @@ def generate_plan(
 
     explanations = [explain_recommendation(f, targets) for f in recommended[:5]]
 
+    total_calories = round(sum(f.energy_kcal or 0 for f in recommended), 1)
+    total_protein = round(sum(f.protein_g or 0 for f in recommended), 1)
+    total_carbs = round(sum(f.carbs_g or 0 for f in recommended), 1)
+    total_fat = round(sum(f.fat_g or 0 for f in recommended), 1)
+
+    db.add(DietPlan(
+        user_id=current.id,
+        meal_data=json.dumps([slot.model_dump() for slot in meal_plan]),
+        total_calories=total_calories,
+        total_protein=total_protein,
+        total_carbs=total_carbs,
+        total_fat=total_fat,
+        created_at=datetime.utcnow().isoformat(timespec="seconds"),
+    ))
+    db.commit()
+
     return RecommendationResponse(
         meal_plan=meal_plan,
-        total_calories=round(sum(f.energy_kcal or 0 for f in recommended), 1),
-        total_protein=round(sum(f.protein_g or 0 for f in recommended), 1),
-        total_carbs=round(sum(f.carbs_g or 0 for f in recommended), 1),
-        total_fat=round(sum(f.fat_g or 0 for f in recommended), 1),
+        total_calories=total_calories,
+        total_protein=total_protein,
+        total_carbs=total_carbs,
+        total_fat=total_fat,
         explanation=" | ".join(explanations),
     )
