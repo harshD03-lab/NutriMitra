@@ -13,6 +13,8 @@ NutriMitra is a final-year ML project that generates personalized daily meal pla
 - **Medical Safety Layer** — Hard-filter that excludes unsafe foods for conditions like diabetes, hypertension, kidney disease, PCOS, and heart disease
 - **AI Recommendations** — k-Nearest Neighbors (cosine distance) finds the closest-matching foods for your daily nutrition targets
 - **Nutrition Engine** — Mifflin-St Jeor BMR → TDEE → macro/micronutrient targets
+- **Plan History** — Every generated plan is saved automatically; browse, reload, or delete past plans
+- **Food Browse** — Search the Indian food database with pagination and category filters
 - **Indian Food Database** — Built to ingest the ICMR-NIN Indian food composition dataset
 
 ---
@@ -64,9 +66,9 @@ Opens at **http://127.0.0.1:5173** (proxies API calls to port 8000).
 NutriMitra/
 ├── client/                     # React frontend
 │   ├── src/
-│   │   ├── pages/              # RegisterPage, DashboardPage
+│   │   ├── pages/              # RegisterPage, DashboardPage, FoodBrowsePage
 │   │   ├── Layout.tsx          # App shell with nav
-│   │   ├── api.ts              # API client
+│   │   ├── api.ts              # Typed API client
 │   │   └── main.tsx            # Entry point with router
 │   ├── index.html
 │   ├── vite.config.ts
@@ -78,13 +80,13 @@ NutriMitra/
 │   │   ├── core/               # Config, DB, Security
 │   │   ├── models/             # User, FoodItem, DietPlan ORM
 │   │   ├── schemas/            # Pydantic validation
-│   │   ├── api/v1/routes/      # auth, users, food, recommendations
+│   │   ├── api/v1/routes/      # auth, users, food, recommendations, plans
 │   │   ├── ml/                 # ML engine
 │   │   │   ├── nutrient_engine.py   # BMR/TDEE/macro calculator
 │   │   │   ├── hard_filter.py       # Medical condition filter
 │   │   │   ├── knn_recommender.py   # kNN content-based filtering
 │   │   │   └── explainability.py    # Recommendation explanation
-│   │   └── data/               # Dataset import scripts
+│   │   └── data/               # Dataset import + PDF extractor scripts
 │   ├── static/                 # Built frontend (auto-served)
 │   ├── requirements.txt
 │   └── .env.example
@@ -101,8 +103,12 @@ NutriMitra/
 | POST | `/v1/auth/register` | Create account |
 | POST | `/v1/auth/login` | Get JWT token |
 | GET | `/v1/users/me` | Current user profile |
-| GET | `/v1/food/` | List food items |
-| POST | `/v1/recommendations/` | Generate meal plan |
+| GET | `/v1/food/` | List/search food items (q, category, skip, limit) |
+| GET | `/v1/food/categories` | Distinct food categories |
+| POST | `/v1/recommendations/` | Generate meal plan (auto-saved to history) |
+| GET | `/v1/plans/` | List current user's saved plans |
+| GET | `/v1/plans/{id}` | Full saved plan with meal items |
+| DELETE | `/v1/plans/{id}` | Delete a saved plan |
 
 ---
 
@@ -122,7 +128,7 @@ User Profile → Nutrient Engine (BMR/TDEE) → Hard Filter (medical safety)
 
 ## Dataset
 
-The project is designed to work with the **ICMR-National Institute of Nutrition (NIN) Indian Food Composition Database**. Run the seed script to import:
+The project is designed to work with the **ICMR-National Institute of Nutrition (NIN) Indian Food Composition Database**. The database is currently seeded with **1,014 foods** imported from a processed CSV; the seed script auto-detects and maps diverse column name formats. A `pdf_extractor` script is also included for parsing the full **IFCT2017** dataset (585 pages, PDF is gitignored).
 
 ```powershell
 cd NutriMitra\server
@@ -135,9 +141,9 @@ cd NutriMitra\server
 
 - ✅ Phase 1: Backend Foundation (auth, DB, models, routes)
 - ✅ Phase 2: ML Engine (nutrient targets, hard filter, kNN)
-- ⬜ Phase 3: Recommendations UI (wire frontend to ML endpoint)
-- ⬜ Phase 4: Dataset import + food browse
-- ⬜ Phase 5: Diet plan history
+- ✅ Phase 3: Recommendations UI (wire frontend to ML endpoint)
+- ✅ Phase 4: Dataset import + food browse
+- ✅ Phase 5: Diet plan history
 - ⬜ Phase 6: Polish, testing, deployment
 
 ---
