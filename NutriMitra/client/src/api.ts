@@ -27,6 +27,42 @@ export function getMe(token: string) {
   return request('GET', '/users/me', undefined, token)
 }
 
+export interface UserProfile {
+  id: number
+  email: string
+  name: string
+  age: number | null
+  gender: string | null
+  height_cm: number | null
+  weight_kg: number | null
+  activity_level: string | null
+  diet_type: string | null
+  medical_conditions: string | null
+}
+
+export interface MealItem {
+  food_name: string
+  serving_size: string
+  calories: number
+  protein_g: number
+  carbs_g: number
+  fat_g: number
+}
+
+export interface MealPlan {
+  meal: string
+  items: MealItem[]
+}
+
+export interface RecommendationResponse {
+  meal_plan: MealPlan[]
+  total_calories: number
+  total_protein: number
+  total_carbs: number
+  total_fat: number
+  explanation: string | null
+}
+
 export function getRecommendations(token: string, profile: Record<string, unknown>) {
-  return request('POST', '/recommendations/', profile, token)
+  return request('POST', '/recommendations/', profile, token) as Promise<RecommendationResponse>
 }

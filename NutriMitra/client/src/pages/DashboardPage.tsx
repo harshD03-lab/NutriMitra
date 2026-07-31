@@ -1,19 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getMe } from '../api'
-
-interface UserProfile {
-  id: number
-  email: string
-  name: string
-  age: number | null
-  gender: string | null
-  height_cm: number | null
-  weight_kg: number | null
-  activity_level: string | null
-  diet_type: string | null
-  medical_conditions: string | null
-}
+import { getMe, getRecommendations } from '../api'
+import type { UserProfile, RecommendationResponse, MealPlan, MealItem } from '../api'
 
 export default function DashboardPage() {
   const nav = useNavigate()
@@ -21,6 +9,9 @@ export default function DashboardPage() {
   const [user, setUser] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
+  const [plan, setPlan] = useState<RecommendationResponse | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     if (!token) { nav('/'); return }
@@ -33,11 +24,37 @@ export default function DashboardPage() {
   if (loading) return <p className="text-center py-20 text-gray-500">Loading...</p>
   if (!user) return null
 
-  const updateField = async (field: string, value: string | number | null) => {
+  const updateField = (field: string, value: string | number | null) => {
     setUser({ ...user, [field]: value })
     setMessage('Profile updated (UI only for now)')
+    setPlan(null)
     setTimeout(() => setMessage(''), 3000)
   }
+
+  const generatePlan = async () => {
+    if (!token) return
+    setGenerating(true)
+    setError('')
+    try {
+      const profile = {
+        age: user.age,
+        gender: user.gender,
+        height_cm: user.height_cm,
+        weight_kg: user.weight_kg,
+        activity_level: user.activity_level,
+        diet_type: user.diet_type,
+        medical_conditions: user.medical_conditions,
+      }
+      const data = await getRecommendations(token, profile)
+      setPlan(data)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to generate plan')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const canGenerate = Boolean(user.age && user.gender && user.height_cm && user.weight_kg && user.activity_level)
 
   return (
     <div className="space-y-6">
@@ -65,9 +82,25 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {user.age && user.gender && user.height_cm && user.weight_kg && user.activity_level && (
-        <NutrientTargetsCard profile={user} />
-      )}
+      {canGenerate && <NutrientTargetsCard profile={user} />}
+
+      <section className="bg-white rounded-xl shadow-sm border p-5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">AI Meal Plan</h2>
+          <button
+            onClick={generatePlan}
+            disabled={!canGenerate || generating}
+            className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          >
+            {generating ? 'Generating...' : 'Generate Meal Plan'}
+          </button>
+        </div>
+        {!canGenerate && (
+          <p className="text-xs text-gray-500 mt-2">Fill in age, gender, height, weight and activity to generate a plan.</p>
+        )}
+        {error && <p className="text-red-600 text-sm mt-3">{error}</p>}
+        {plan && <MealPlanView plan={plan} />}
+      </section>
     </div>
   )
 }
@@ -91,7 +124,7 @@ function Field({ label, value, onChange, placeholder }: {
   )
 }
 
-function NutriTargetsCard({ profile }: { profile: UserProfile }) {
+function NutrientTargetsCard({ profile }: { profile: UserProfile }) {
   const bmr = profile.gender?.toLowerCase() === 'male'
     ? 10 * (profile.weight_kg ?? 0) + 6.25 * (profile.height_cm ?? 0) - 5 * (profile.age ?? 0) + 5
     : 10 * (profile.weight_kg ?? 0) + 6.25 * (profile.height_cm ?? 0) - 5 * (profile.age ?? 0) - 161
@@ -125,5 +158,74 @@ function NutriBox({ label, value, unit, color }: { label: string; value: string;
       <p className="text-2xl font-bold mt-1">{value}</p>
       <p className="text-xs">{unit}</p>
     </div>
+  )
+}
+
+function MealPlanView({ plan }: { plan: RecommendationResponse }) {
+  return (
+    <div className="mt-5 space-y-5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <NutriBox label="Total Calories" value={`${Math.round(plan.total_calories)}`} unit="kcal" color="emerald" />
+        <NutriBox label="Protein" value={`${Math.round(plan.total_protein)}`} unit="g" color="blue" />
+        <NutriBox label="Carbs" value={`${Math.round(plan.total_carbs)}`} unit="g" color="amber" />
+        <NutriBox label="Fat" value={`${Math.round(plan.total_fat)}`} unit="g" color="rose" />
+      </div>
+
+      {plan.meal_plan.map(slot => (
+        <MealSlot key={slot.meal} slot={slot} />
+      ))}
+
+      {plan.explanation && (
+        <div className="bg-gray-50 rounded-lg border p-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-2">Why these foods?</p>
+          <div className="space-y-1">
+            {plan.explanation.split('|').map((line, i) => (
+              <p key={i} className="text-sm text-gray-700">{line.trim()}</p>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MealSlot({ slot }: { slot: MealPlan }) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-emerald-700 uppercase tracking-wide mb-2">{slot.meal}</h3>
+      <div className="overflow-hidden rounded-lg border">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+            <tr>
+              <th className="px-3 py-2 font-medium">Food</th>
+              <th className="px-3 py-2 font-medium text-right">Cal</th>
+              <th className="px-3 py-2 font-medium text-right">Protein</th>
+              <th className="px-3 py-2 font-medium text-right">Carbs</th>
+              <th className="px-3 py-2 font-medium text-right">Fat</th>
+            </tr>
+          </thead>
+          <tbody>
+            {slot.items.map((item, i) => (
+              <FoodRow key={i} item={item} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function FoodRow({ item }: { item: MealItem }) {
+  return (
+    <tr className="border-t">
+      <td className="px-3 py-2">
+        <p className="font-medium">{item.food_name}</p>
+        <p className="text-xs text-gray-500">{item.serving_size}</p>
+      </td>
+      <td className="px-3 py-2 text-right">{Math.round(item.calories)}</td>
+      <td className="px-3 py-2 text-right">{item.protein_g.toFixed(1)}</td>
+      <td className="px-3 py-2 text-right">{item.carbs_g.toFixed(1)}</td>
+      <td className="px-3 py-2 text-right">{item.fat_g.toFixed(1)}</td>
+    </tr>
   )
 }

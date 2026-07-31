@@ -31,3 +31,9 @@ venv/
 
 # Env files
 .env
+
+# Raw dataset (large public PDF, download separately)
+NutriMitra/server/app/data/raw/*.pdf
+
+# graphify regenerable cache
+graphify-out/cache/
