@@ -2,6 +2,13 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getMe, getRecommendations, getPlans, getPlan, deletePlan } from '../api'
 import type { UserProfile, RecommendationResponse, MealPlan, MealItem, PlanSummary, SavedPlan } from '../api'
+import ThaliRing from '../components/ThaliRing'
+
+const MACRO_COLORS = {
+  protein: 'var(--color-leaf)',
+  carbs: 'var(--color-saffron)',
+  fat: 'var(--color-chilli)',
+}
 
 export default function DashboardPage() {
   const nav = useNavigate()
@@ -27,14 +34,15 @@ export default function DashboardPage() {
       .then(u => { setUser(u); loadHistory(token) })
       .catch(() => { localStorage.clear(); nav('/') })
       .finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  if (loading) return <p className="text-center py-20 text-gray-500">Loading...</p>
+  if (loading) return <p className="py-24 text-center text-clay">Loading your thali…</p>
   if (!user) return null
 
   const updateField = (field: string, value: string | number | null) => {
     setUser({ ...user, [field]: value })
-    setMessage('Profile updated (UI only for now)')
+    setMessage('Profile updated — refresh targets with a new plan')
     setPlan(null)
     setTimeout(() => setMessage(''), 3000)
   }
@@ -91,63 +99,69 @@ export default function DashboardPage() {
   const shownPlan = viewingPlan
     ? {
         meal_plan: viewingPlan.meal_plan,
-        total_calories: viewingPlan.total_calories,
-        total_protein: viewingPlan.total_protein,
-        total_carbs: viewingPlan.total_carbs,
-        total_fat: viewingPlan.total_fat,
+        total_calories: viewingPlan.total_calories ?? 0,
+        total_protein: viewingPlan.total_protein ?? 0,
+        total_carbs: viewingPlan.total_carbs ?? 0,
+        total_fat: viewingPlan.total_fat ?? 0,
         explanation: null,
       } as RecommendationResponse
     : plan
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Welcome, {user.name}</h1>
-      {message && <p className="text-emerald-600 text-sm">{message}</p>}
-
-      <section className="bg-white rounded-xl shadow-sm border p-5 space-y-4">
-        <h2 className="text-lg font-semibold">Your Profile</h2>
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Age" value={user.age} onChange={v => updateField('age', v ? Number(v) : null)} />
-          <Field label="Gender" value={user.gender} onChange={v => updateField('gender', v)} placeholder="male/female" />
-          <Field label="Height (cm)" value={user.height_cm} onChange={v => updateField('height_cm', v ? Number(v) : null)} />
-          <Field label="Weight (kg)" value={user.weight_kg} onChange={v => updateField('weight_kg', v ? Number(v) : null)} />
-          <Field label="Activity" value={user.activity_level} onChange={v => updateField('activity_level', v)} placeholder="sedentary/light/moderate/active/very_active" />
-          <Field label="Diet Type" value={user.diet_type} onChange={v => updateField('diet_type', v)} placeholder="balanced/low-carb/high-protein" />
-          <div className="col-span-2">
-            <label className="block text-xs text-gray-500 mb-1">Medical Conditions</label>
-            <input
-              value={user.medical_conditions || ''}
-              onChange={e => updateField('medical_conditions', e.target.value || null)}
-              placeholder="e.g. diabetes, hypertension"
-              className="w-full border rounded-lg px-3 py-2 text-sm"
-            />
-          </div>
+    <div className="mx-auto max-w-6xl space-y-8 px-4 py-10 sm:px-6">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="font-mono text-[11px] uppercase tracking-widest text-clay">
+            {new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
+          </p>
+          <h1 className="mt-1 font-display text-3xl font-bold sm:text-4xl">
+            Welcome, {user.name.split(' ')[0]}
+          </h1>
         </div>
-      </section>
+        <button
+          onClick={generatePlan}
+          disabled={!canGenerate || generating}
+          className="cursor-pointer rounded-full bg-saffron px-6 py-3 font-semibold text-white shadow-md shadow-saffron/30 transition-all hover:bg-saffron-deep hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {generating ? 'Cooking…' : 'Generate my thali'}
+        </button>
+      </header>
 
-      {canGenerate && <NutrientTargetsCard profile={user} />}
+      {message && (
+        <p className="rounded-xl border border-leaf/30 bg-leaf-soft px-4 py-2.5 text-sm text-leaf-deep">
+          {message}
+        </p>
+      )}
 
-      <section className="bg-white rounded-xl shadow-sm border p-5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">AI Meal Plan</h2>
-          <button
-            onClick={generatePlan}
-            disabled={!canGenerate || generating}
-            className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-          >
-            {generating ? 'Generating...' : 'Generate Meal Plan'}
-          </button>
+      {canGenerate && <TargetsCard user={user} />}
+
+      <ProfileCard user={user} updateField={updateField} />
+
+      <section className="rounded-3xl border border-rim bg-cream p-6 sm:p-8">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-display text-2xl font-bold">Your AI thali</h2>
+          {!canGenerate && (
+            <p className="font-mono text-xs text-clay">
+              Fill in age, gender, height, weight and activity to cook one.
+            </p>
+          )}
         </div>
-        {!canGenerate && (
-          <p className="text-xs text-gray-500 mt-2">Fill in age, gender, height, weight and activity to generate a plan.</p>
+
+        {error && (
+          <p className="mt-4 rounded-xl border border-chilli/30 bg-chilli-soft px-4 py-2.5 text-sm text-chilli">
+            {error}
+          </p>
         )}
-        {error && <p className="text-red-600 text-sm mt-3">{error}</p>}
+
         {shownPlan && (
-          <div>
+          <div className="mt-6 animate-pop">
             {viewingPlan && (
-              <p className="text-xs text-gray-500 mt-2 mb-2">
-                Viewing saved plan from {formatDate(viewingPlan.created_at)}{' '}
-                <button onClick={() => { setViewingPlan(null); setPlan(null) }} className="text-emerald-600 hover:underline cursor-pointer">
+              <p className="mb-4 text-sm text-clay">
+                Viewing a saved thali from {formatDate(viewingPlan.created_at)}{' '}
+                <button
+                  onClick={() => { setViewingPlan(null); setPlan(null) }}
+                  className="ml-1 cursor-pointer font-semibold text-saffron-deep hover:underline"
+                >
                   Clear
                 </button>
               </p>
@@ -157,44 +171,11 @@ export default function DashboardPage() {
         )}
       </section>
 
-      <section className="bg-white rounded-xl shadow-sm border p-5">
-        <h2 className="text-lg font-semibold mb-3">Plan History</h2>
-        {savedPlans.length === 0 ? (
-          <p className="text-xs text-gray-500">No saved plans yet. Generate a meal plan to save it here.</p>
-        ) : (
-          <ul className="divide-y">
-            {savedPlans.map(p => (
-              <li key={p.id} className="py-3 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-sm font-bold">
-                    {p.item_count}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">{formatDate(p.created_at)}</p>
-                    <p className="text-xs text-gray-500">
-                      {p.total_calories ?? 0} kcal | P {p.total_protein ?? 0}g | C {p.total_carbs ?? 0}g | F {p.total_fat ?? 0}g
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  <button
-                    onClick={() => openSavedPlan(p.id)}
-                    className="text-sm text-emerald-600 hover:underline cursor-pointer"
-                  >
-                    View
-                  </button>
-                  <button
-                    onClick={() => removeSavedPlan(p.id)}
-                    className="text-sm text-red-600 hover:underline cursor-pointer"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <HistorySection
+        plans={savedPlans}
+        onOpen={openSavedPlan}
+        onDelete={removeSavedPlan}
+      />
     </div>
   )
 }
@@ -205,103 +186,254 @@ function formatDate(iso: string | null) {
   return isNaN(d.getTime()) ? iso : d.toLocaleString()
 }
 
-function Field({ label, value, onChange, placeholder }: {
-  label: string
-  value: string | number | null
-  onChange: (v: string) => void
-  placeholder?: string
-}) {
-  return (
-    <div>
-      <label className="block text-xs text-gray-500 mb-1">{label}</label>
-      <input
-        value={value ?? ''}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full border rounded-lg px-3 py-2 text-sm"
-      />
-    </div>
-  )
-}
-
-function NutrientTargetsCard({ profile }: { profile: UserProfile }) {
-  const bmr = profile.gender?.toLowerCase() === 'male'
-    ? 10 * (profile.weight_kg ?? 0) + 6.25 * (profile.height_cm ?? 0) - 5 * (profile.age ?? 0) + 5
-    : 10 * (profile.weight_kg ?? 0) + 6.25 * (profile.height_cm ?? 0) - 5 * (profile.age ?? 0) - 161
+function TargetsCard({ user }: { user: UserProfile }) {
+  const bmr = user.gender?.toLowerCase() === 'male'
+    ? 10 * (user.weight_kg ?? 0) + 6.25 * (user.height_cm ?? 0) - 5 * (user.age ?? 0) + 5
+    : 10 * (user.weight_kg ?? 0) + 6.25 * (user.height_cm ?? 0) - 5 * (user.age ?? 0) - 161
 
   const mult: Record<string, number> = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725, very_active: 1.9 }
-  const tdee = bmr * (mult[profile.activity_level ?? ''] || 1.2)
+  const tdee = bmr * (mult[user.activity_level ?? ''] || 1.2)
+  const protein = (tdee * 0.2) / 4
+  const carbs = (tdee * 0.55) / 4
+  const fat = (tdee * 0.25) / 9
+
+  const calories = protein * 4 + carbs * 4 + fat * 9
+  const segments = [
+    { percent: ((protein * 4) / calories) * 100, color: MACRO_COLORS.protein },
+    { percent: ((carbs * 4) / calories) * 100, color: MACRO_COLORS.carbs },
+    { percent: ((fat * 9) / calories) * 100, color: MACRO_COLORS.fat },
+  ]
 
   return (
-    <section className="bg-white rounded-xl shadow-sm border p-5">
-      <h2 className="text-lg font-semibold mb-3">Your Daily Nutrition Targets</h2>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <NutriBox label="Calories" value={`${Math.round(tdee)}`} unit="kcal" color="emerald" />
-        <NutriBox label="Protein" value={`${Math.round(tdee * 0.2 / 4)}`} unit="g" color="blue" />
-        <NutriBox label="Carbs" value={`${Math.round(tdee * 0.55 / 4)}`} unit="g" color="amber" />
-        <NutriBox label="Fat" value={`${Math.round(tdee * 0.25 / 9)}`} unit="g" color="rose" />
+    <section className="rounded-3xl border border-rim bg-cream p-6 sm:p-8">
+      <h2 className="font-display text-2xl font-bold">Today's targets</h2>
+      <p className="mt-1 font-mono text-xs text-clay">
+        Mifflin-St Jeor BMR → TDEE, split by your diet type
+      </p>
+      <div className="mt-6 flex flex-wrap items-center gap-10">
+        <ThaliRing
+          size={200}
+          hole={0.46}
+          centerLabel="Target"
+          centerValue={`${Math.round(tdee)}`}
+          centerUnit="kcal"
+          segments={segments}
+        />
+        <div className="grid flex-1 grid-cols-2 gap-4 sm:grid-cols-3">
+          <NutriStat label="Protein" value={`${Math.round(protein)}`} unit="g" color="text-leaf" dot={MACRO_COLORS.protein} />
+          <NutriStat label="Carbs" value={`${Math.round(carbs)}`} unit="g" color="text-saffron-deep" dot={MACRO_COLORS.carbs} />
+          <NutriStat label="Fat" value={`${Math.round(fat)}`} unit="g" color="text-chilli" dot={MACRO_COLORS.fat} />
+        </div>
       </div>
     </section>
   )
 }
 
-function NutriBox({ label, value, unit, color }: { label: string; value: string; unit: string; color: string }) {
-  const colors: Record<string, string> = {
-    emerald: 'bg-emerald-50 border-emerald-200 text-emerald-800',
-    blue: 'bg-blue-50 border-blue-200 text-blue-800',
-    amber: 'bg-amber-50 border-amber-200 text-amber-800',
-    rose: 'bg-rose-50 border-rose-200 text-rose-800',
-  }
+function ProfileCard({
+  user,
+  updateField,
+}: {
+  user: UserProfile
+  updateField: (field: string, value: string | number | null) => void
+}) {
+  const inputClass =
+    'w-full rounded-xl border border-rim bg-paper px-3.5 py-2.5 text-sm text-ink focus:border-saffron'
+
   return (
-    <div className={`rounded-lg border p-3 text-center ${colors[color]}`}>
-      <p className="text-xs font-medium uppercase tracking-wide">{label}</p>
-      <p className="text-2xl font-bold mt-1">{value}</p>
-      <p className="text-xs">{unit}</p>
+    <section className="rounded-3xl border border-rim bg-cream p-6 sm:p-8">
+      <h2 className="font-display text-2xl font-bold">Your profile</h2>
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Field label="Age" value={user.age} onChange={v => updateField('age', v ? Number(v) : null)} />
+        <div>
+          <FieldLabel>Gender</FieldLabel>
+          <select
+            value={user.gender ?? ''}
+            onChange={e => updateField('gender', e.target.value || null)}
+            className={`${inputClass} cursor-pointer`}
+          >
+            <option value="">Select…</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </select>
+        </div>
+        <Field label="Height (cm)" value={user.height_cm} onChange={v => updateField('height_cm', v ? Number(v) : null)} />
+        <Field label="Weight (kg)" value={user.weight_kg} onChange={v => updateField('weight_kg', v ? Number(v) : null)} />
+        <div>
+          <FieldLabel>Activity level</FieldLabel>
+          <select
+            value={user.activity_level ?? ''}
+            onChange={e => updateField('activity_level', e.target.value || null)}
+            className={`${inputClass} cursor-pointer`}
+          >
+            <option value="">Select…</option>
+            <option value="sedentary">Sedentary</option>
+            <option value="light">Light</option>
+            <option value="moderate">Moderate</option>
+            <option value="active">Active</option>
+            <option value="very_active">Very active</option>
+          </select>
+        </div>
+        <div>
+          <FieldLabel>Diet type</FieldLabel>
+          <select
+            value={user.diet_type ?? ''}
+            onChange={e => updateField('diet_type', e.target.value || null)}
+            className={`${inputClass} cursor-pointer`}
+          >
+            <option value="">Select…</option>
+            <option value="balanced">Balanced</option>
+            <option value="low-carb">Low-carb</option>
+            <option value="high-protein">High-protein</option>
+          </select>
+        </div>
+        <div className="sm:col-span-2 lg:col-span-3">
+          <FieldLabel>Medical conditions</FieldLabel>
+          <input
+            value={user.medical_conditions || ''}
+            onChange={e => updateField('medical_conditions', e.target.value || null)}
+            placeholder="e.g. diabetes, hypertension"
+            className={inputClass}
+          />
+          <p className="mt-1.5 font-mono text-[11px] text-clay">
+            Foods clashing with these are hard-filtered out of every plan.
+          </p>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function Field({ label, value, onChange }: {
+  label: string
+  value: string | number | null
+  onChange: (v: string) => void
+}) {
+  return (
+    <div>
+      <FieldLabel>{label}</FieldLabel>
+      <input
+        value={value ?? ''}
+        onChange={e => onChange(e.target.value)}
+        className="w-full rounded-xl border border-rim bg-paper px-3.5 py-2.5 text-sm text-ink focus:border-saffron"
+      />
+    </div>
+  )
+}
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <label className="mb-1.5 block font-mono text-[11px] font-semibold uppercase tracking-widest text-clay">
+      {children}
+    </label>
+  )
+}
+
+function NutriStat({ label, value, unit, color, dot }: {
+  label: string
+  value: string
+  unit: string
+  color: string
+  dot: string
+}) {
+  return (
+    <div className="rounded-2xl border border-rim bg-paper p-4">
+      <div className="flex items-center gap-2">
+        <span className="h-2.5 w-2.5 rounded-full" style={{ background: dot }} />
+        <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-clay">
+          {label}
+        </p>
+      </div>
+      <p className={`mt-2 font-display text-3xl font-bold ${color}`}>
+        {value}
+        <span className="ml-1 text-sm font-medium text-clay">{unit}</span>
+      </p>
     </div>
   )
 }
 
 function MealPlanView({ plan }: { plan: RecommendationResponse }) {
+  const proteinCal = plan.total_protein * 4
+  const carbCal = plan.total_carbs * 4
+  const fatCal = plan.total_fat * 9
+  const cal = Math.max(plan.total_calories, proteinCal + carbCal + fatCal)
+
+  const segments = [
+    { percent: (proteinCal / cal) * 100, color: MACRO_COLORS.protein },
+    { percent: (carbCal / cal) * 100, color: MACRO_COLORS.carbs },
+    { percent: (fatCal / cal) * 100, color: MACRO_COLORS.fat },
+  ]
+
   return (
-    <div className="mt-5 space-y-5">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <NutriBox label="Total Calories" value={`${Math.round(plan.total_calories)}`} unit="kcal" color="emerald" />
-        <NutriBox label="Protein" value={`${Math.round(plan.total_protein)}`} unit="g" color="blue" />
-        <NutriBox label="Carbs" value={`${Math.round(plan.total_carbs)}`} unit="g" color="amber" />
-        <NutriBox label="Fat" value={`${Math.round(plan.total_fat)}`} unit="g" color="rose" />
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center gap-10">
+        <ThaliRing
+          size={160}
+          hole={0.46}
+          centerLabel="Plan"
+          centerValue={`${Math.round(plan.total_calories)}`}
+          centerUnit="kcal"
+          segments={segments}
+        />
+        <ul className="space-y-2">
+          <LegendRow dot={MACRO_COLORS.protein} label="Protein" value={`${plan.total_protein.toFixed(1)} g`} />
+          <LegendRow dot={MACRO_COLORS.carbs} label="Carbs" value={`${plan.total_carbs.toFixed(1)} g`} />
+          <LegendRow dot={MACRO_COLORS.fat} label="Fat" value={`${plan.total_fat.toFixed(1)} g`} />
+        </ul>
       </div>
 
       {plan.meal_plan.map(slot => (
-        <MealSlot key={slot.meal} slot={slot} />
+        <MealSlotCard key={slot.meal} slot={slot} />
       ))}
 
       {plan.explanation && (
-        <div className="bg-gray-50 rounded-lg border p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-2">Why these foods?</p>
-          <div className="space-y-1">
+        <div className="rounded-2xl border border-rim bg-paper p-5">
+          <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-clay">
+            Why these foods?
+          </p>
+          <ul className="mt-3 space-y-1.5">
             {plan.explanation.split('|').map((line, i) => (
-              <p key={i} className="text-sm text-gray-700">{line.trim()}</p>
+              <li key={i} className="flex gap-2 text-sm text-ink">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-saffron" />
+                {line.trim()}
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
       )}
     </div>
   )
 }
 
-function MealSlot({ slot }: { slot: MealPlan }) {
+function LegendRow({ dot, label, value }: { dot: string; label: string; value: string }) {
   return (
-    <div>
-      <h3 className="text-sm font-semibold text-emerald-700 uppercase tracking-wide mb-2">{slot.meal}</h3>
-      <div className="overflow-hidden rounded-lg border">
+    <li className="flex items-center gap-2.5 text-sm">
+      <span className="h-3 w-3 rounded-full" style={{ background: dot }} />
+      <span className="text-clay">{label}</span>
+      <span className="font-mono font-semibold text-ink">{value}</span>
+    </li>
+  )
+}
+
+function MealSlotCard({ slot }: { slot: MealPlan }) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-rim">
+      <div className="flex items-center justify-between bg-paper px-5 py-3">
+        <h3 className="font-display text-base font-bold text-saffron-deep">
+          {slot.meal}
+        </h3>
+        <span className="font-mono text-xs text-clay">
+          {slot.items.reduce((s, i) => s + i.calories, 0).toFixed(0)} kcal
+        </span>
+      </div>
+      <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+          <thead className="text-left font-mono text-[11px] uppercase tracking-wider text-clay">
             <tr>
-              <th className="px-3 py-2 font-medium">Food</th>
-              <th className="px-3 py-2 font-medium text-right">Cal</th>
-              <th className="px-3 py-2 font-medium text-right">Protein</th>
-              <th className="px-3 py-2 font-medium text-right">Carbs</th>
-              <th className="px-3 py-2 font-medium text-right">Fat</th>
+              <th className="px-5 py-2.5 font-semibold">Food</th>
+              <th className="px-5 py-2.5 text-right font-semibold">Cal</th>
+              <th className="px-5 py-2.5 text-right font-semibold">Protein</th>
+              <th className="px-5 py-2.5 text-right font-semibold">Carbs</th>
+              <th className="px-5 py-2.5 text-right font-semibold">Fat</th>
             </tr>
           </thead>
           <tbody>
@@ -317,15 +449,68 @@ function MealSlot({ slot }: { slot: MealPlan }) {
 
 function FoodRow({ item }: { item: MealItem }) {
   return (
-    <tr className="border-t">
-      <td className="px-3 py-2">
+    <tr className="border-t border-rim transition-colors hover:bg-paper">
+      <td className="px-5 py-3">
         <p className="font-medium">{item.food_name}</p>
-        <p className="text-xs text-gray-500">{item.serving_size}</p>
+        <p className="font-mono text-xs text-clay">{item.serving_size}</p>
       </td>
-      <td className="px-3 py-2 text-right">{Math.round(item.calories)}</td>
-      <td className="px-3 py-2 text-right">{item.protein_g.toFixed(1)}</td>
-      <td className="px-3 py-2 text-right">{item.carbs_g.toFixed(1)}</td>
-      <td className="px-3 py-2 text-right">{item.fat_g.toFixed(1)}</td>
+      <td className="px-5 py-3 text-right font-mono">{Math.round(item.calories)}</td>
+      <td className="px-5 py-3 text-right font-mono">{item.protein_g.toFixed(1)}</td>
+      <td className="px-5 py-3 text-right font-mono">{item.carbs_g.toFixed(1)}</td>
+      <td className="px-5 py-3 text-right font-mono">{item.fat_g.toFixed(1)}</td>
     </tr>
+  )
+}
+
+function HistorySection({
+  plans,
+  onOpen,
+  onDelete,
+}: {
+  plans: PlanSummary[]
+  onOpen: (id: number) => void
+  onDelete: (id: number) => void
+}) {
+  return (
+    <section className="rounded-3xl border border-rim bg-cream p-6 sm:p-8">
+      <h2 className="font-display text-2xl font-bold">Plan history</h2>
+      {plans.length === 0 ? (
+        <p className="mt-3 font-mono text-sm text-clay">
+          No saved thalis yet — generate one and it lands here.
+        </p>
+      ) : (
+        <ul className="mt-4 divide-y divide-rim">
+          {plans.map(p => (
+            <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 py-3.5">
+              <div className="flex items-center gap-4">
+                <span className="grid h-11 w-11 place-items-center rounded-full bg-saffron-soft font-display text-sm font-bold text-saffron-deep">
+                  {p.item_count}
+                </span>
+                <div>
+                  <p className="font-semibold">{formatDate(p.created_at)}</p>
+                  <p className="font-mono text-xs text-clay">
+                    {p.total_calories ?? 0} kcal · P {p.total_protein ?? 0} · C {p.total_carbs ?? 0} · F {p.total_fat ?? 0}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => onOpen(p.id)}
+                  className="cursor-pointer rounded-full bg-saffron px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-saffron-deep"
+                >
+                  View
+                </button>
+                <button
+                  onClick={() => onDelete(p.id)}
+                  className="cursor-pointer rounded-full border border-chilli/30 px-4 py-1.5 text-sm font-medium text-chilli transition-colors hover:bg-chilli-soft"
+                >
+                  Delete
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }
