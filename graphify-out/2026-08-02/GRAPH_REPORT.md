@@ -1,16 +1,16 @@
-# Graph Report - Diet System  (2026-08-02)
+# Graph Report - Diet System  (2026-07-31)
 
 ## Corpus Check
-- 51 files · ~18,080 words
+- 50 files · ~16,166 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 654 nodes · 1952 edges · 39 communities (36 shown, 3 thin omitted)
+- 639 nodes · 1933 edges · 37 communities (34 shown, 3 thin omitted)
 - Extraction: 86% EXTRACTED · 14% INFERRED · 0% AMBIGUOUS · INFERRED: 266 edges (avg confidence: 0.51)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `79046278`
+- Built from commit: `b0479af9`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -44,8 +44,6 @@
 - hard_filter.py
 - Ru
 - AGENTS.md
-- lc
-- build_feature_matrix
 
 ## God Nodes (most connected - your core abstractions)
 1. `i()` - 81 edges
@@ -62,7 +60,7 @@
 ## Surprising Connections (you probably didn't know these)
 - `DashboardPage()` --indirect_call--> `t()`  [INFERRED]
   NutriMitra/client/src/pages/DashboardPage.tsx → NutriMitra/server/static/assets/index-Ib34DWp8.js
-- `ProfileCard()` --indirect_call--> `v()`  [INFERRED]
+- `DashboardPage()` --indirect_call--> `v()`  [INFERRED]
   NutriMitra/client/src/pages/DashboardPage.tsx → NutriMitra/server/static/assets/index-Ib34DWp8.js
 - `FoodBrowsePage()` --indirect_call--> `t()`  [INFERRED]
   NutriMitra/client/src/pages/FoodBrowsePage.tsx → NutriMitra/server/static/assets/index-Ib34DWp8.js
@@ -74,39 +72,39 @@
 ## Import Cycles
 - None detected.
 
-## Communities (39 total, 3 thin omitted)
+## Communities (37 total, 3 thin omitted)
 
 ### Community 0 - "recommendations.py"
-Cohesion: 0.17
-Nodes (20): generate_plan(), Session, _resolve(), explain_recommendation(), FoodItem, get_restriction_tags(), hard_filter(), FoodItem (+12 more)
+Cohesion: 0.14
+Nodes (23): ndarray, generate_plan(), Session, _resolve(), explain_recommendation(), FoodItem, get_restriction_tags(), hard_filter() (+15 more)
 
 ### Community 1 - "i"
 Cohesion: 0.07
-Nodes (88): a(), at(), b(), ba(), bd(), bn(), Br(), ca() (+80 more)
+Nodes (85): a(), ac(), ao(), at(), b(), ba(), bd(), Br() (+77 more)
 
 ### Community 2 - "hu"
-Cohesion: 0.20
-Nodes (18): bi(), cc(), ct(), Du(), fc(), gi(), hi(), lo() (+10 more)
+Cohesion: 0.08
+Nodes (55): aa(), Bc(), be(), bi(), cc(), cf(), componentDidCatch(), ct() (+47 more)
 
 ### Community 3 - "pc"
-Cohesion: 0.24
-Nodes (15): cl(), el(), eo(), fl(), ia(), Il(), jc(), Ll() (+7 more)
+Cohesion: 0.08
+Nodes (47): bl(), cl(), dl(), ef(), el(), eo(), fl(), gf() (+39 more)
 
 ### Community 4 - "devDependencies"
 Cohesion: 0.05
 Nodes (39): autoprefixer, dependencies, react, react-dom, react-router-dom, @tailwindcss/vite, devDependencies, autoprefixer (+31 more)
 
 ### Community 5 - "index-CSK9ol_y.js"
-Cohesion: 0.10
-Nodes (39): ae(), An(), Bt(), Cn(), $f(), fd(), fn(), ft() (+31 more)
+Cohesion: 0.11
+Nodes (38): ae(), An(), Bt(), Cn(), E(), $f(), fn(), ft() (+30 more)
 
 ### Community 6 - "api.ts"
-Cohesion: 0.06
-Nodes (38): deletePlan(), FoodItem, FoodListResponse, getFoodCategories(), getFoods(), getMe(), getPlan(), getPlans() (+30 more)
+Cohesion: 0.08
+Nodes (32): deletePlan(), FoodItem, FoodListResponse, getFoodCategories(), getFoods(), getMe(), getPlan(), getPlans() (+24 more)
 
 ### Community 7 - "wd"
-Cohesion: 0.07
-Nodes (34): af(), Bo(), bs(), cs(), df(), Go(), gs(), Hd() (+26 more)
+Cohesion: 0.08
+Nodes (27): af(), bn(), Bo(), bs(), df(), Go(), gs(), ho() (+19 more)
 
 ### Community 8 - "compilerOptions"
 Cohesion: 0.08
@@ -125,8 +123,8 @@ Cohesion: 0.48
 Nodes (6): _build_col_map(), _float(), _int_or_none(), load_icmr_data(), _normalise(), ICMR-NIN / Indian Food Nutrition CSV processing script.  Reads a food compositio
 
 ### Community 12 - "vl"
-Cohesion: 0.12
-Nodes (32): ProfileCard(), ad(), ar(), cr(), dp(), dr(), Ed(), Er() (+24 more)
+Cohesion: 0.14
+Nodes (28): ar(), cr(), dr(), Ed(), Er(), fd(), fr(), gr() (+20 more)
 
 ### Community 13 - "NutriMitra"
 Cohesion: 0.14
@@ -141,12 +139,12 @@ Cohesion: 0.23
 Nodes (16): DeclarativeBase, MealPlan, delete_plan(), get_plan(), list_plans(), _load_meal_plan(), Session, _to_summary() (+8 more)
 
 ### Community 16 - "dl"
-Cohesion: 0.13
-Nodes (29): Au(), bu(), Cu(), et(), Eu(), gu(), He(), hu() (+21 more)
+Cohesion: 0.22
+Nodes (16): Au(), Cu(), et(), Eu(), Je(), ju(), ku(), lt() (+8 more)
 
 ### Community 17 - "se"
-Cohesion: 0.21
-Nodes (11): ap(), ci(), di(), fs(), ip(), kp(), li(), lt() (+3 more)
+Cohesion: 0.18
+Nodes (14): ap(), di(), dp(), fa(), hu(), ip(), kp(), li() (+6 more)
 
 ### Community 18 - "routes/food.py"
 Cohesion: 0.46
@@ -157,50 +155,42 @@ Cohesion: 0.50
 Nodes (3): plugin, $schema, .opencode/plugins/graphify.js
 
 ### Community 30 - "Kt"
-Cohesion: 0.30
-Nodes (15): Bc(), be(), ea(), fe(), Fu(), Ga(), Iu(), Ji() (+7 more)
+Cohesion: 0.22
+Nodes (13): cs(), dd(), Fu(), is(), Iu(), jo(), mu(), Nu() (+5 more)
 
 ### Community 31 - "Ge"
-Cohesion: 0.16
-Nodes (21): aa(), ac(), C(), cf(), componentDidCatch(), Do(), Fi(), gc() (+13 more)
+Cohesion: 0.32
+Nodes (8): ci(), fs(), ns(), si(), st(), ts(), ya(), zs()
 
 ### Community 32 - "pdf_extractor.py"
 Cohesion: 0.39
 Nodes (6): extract_tables(), _float(), _match_column(), _normalise(), Extract Indian food composition tables from PDF (ICMR-NIN format) using pdfplumb, records_to_db()
 
 ### Community 33 - "ds"
-Cohesion: 0.22
-Nodes (9): ec(), Ic(), np(), qa(), tc(), tp(), wc(), wp() (+1 more)
+Cohesion: 0.29
+Nodes (8): ec(), np(), qa(), rc(), tc(), tp(), wp(), Xa()
 
 ### Community 34 - "hard_filter.py"
-Cohesion: 0.21
-Nodes (15): dl(), gl(), jr(), kl(), Nr(), ol(), pa(), Pr() (+7 more)
+Cohesion: 0.40
+Nodes (6): bu(), He(), render(), ut(), Uu(), vf()
 
 ### Community 35 - "Ru"
-Cohesion: 0.20
-Nodes (14): bl(), ef(), gf(), Hf(), hl(), If(), jf(), jl() (+6 more)
-
-### Community 37 - "lc"
-Cohesion: 0.25
-Nodes (11): ao(), dc(), fo(), kr(), ks(), lc(), na(), oa() (+3 more)
-
-### Community 38 - "build_feature_matrix"
-Cohesion: 0.67
-Nodes (3): ndarray, build_feature_matrix(), FoodItem
+Cohesion: 0.50
+Nodes (5): ad(), Gd(), ke(), od(), ud()
 
 ## Knowledge Gaps
-- **83 isolated node(s):** `$schema`, `.opencode/plugins/graphify.js`, `$schema`, `typescript`, `oxc` (+78 more)
+- **79 isolated node(s):** `$schema`, `.opencode/plugins/graphify.js`, `$schema`, `typescript`, `oxc` (+74 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **3 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `t()` connect `i` to `ds`, `hu`, `index-CSK9ol_y.js`, `api.ts`, `wd`, `vl`, `se`, `Kt`, `Ge`?**
-  _High betweenness centrality (0.083) - this node is a cross-community bridge._
-- **Why does `DashboardPage()` connect `api.ts` to `i`?**
-  _High betweenness centrality (0.053) - this node is a cross-community bridge._
-- **Why does `FoodBrowsePage()` connect `api.ts` to `i`?**
+- **Why does `t()` connect `i` to `ds`, `hu`, `index-CSK9ol_y.js`, `api.ts`, `wd`, `vl`, `se`?**
+  _High betweenness centrality (0.062) - this node is a cross-community bridge._
+- **Why does `DashboardPage()` connect `api.ts` to `i`, `vl`?**
+  _High betweenness centrality (0.060) - this node is a cross-community bridge._
+- **Why does `v()` connect `vl` to `i`, `api.ts`, `wd`?**
   _High betweenness centrality (0.025) - this node is a cross-community bridge._
 - **Are the 23 inferred relationships involving `i()` (e.g. with `ae()` and `b()`) actually correct?**
   _`i()` has 23 INFERRED edges - model-reasoned connections that need verification._

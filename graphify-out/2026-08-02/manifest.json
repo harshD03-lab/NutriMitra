@@ -25,8 +25,8 @@
     "semantic_hash": "c5e44a49ac2a44373fba5d1a7fe35be4"
   },
   "NutriMitra/client/src/Layout.tsx": {
-    "mtime": 1785690924.882256,
-    "ast_hash": "ab8a602949bb508939a7353aa7c206f4",
+    "mtime": 1785519075.0697036,
+    "ast_hash": "b344323a2fea6a7fd20f83f7e7d95b69",
     "semantic_hash": ""
   },
   "NutriMitra/client/src/api.ts": {
@@ -40,14 +40,14 @@
     "semantic_hash": ""
   },
   "NutriMitra/client/src/pages/DashboardPage.tsx": {
-    "mtime": 1785690982.5440526,
-    "ast_hash": "b4ec7f839f7ddb37ed4afee0e5f7ef04",
+    "mtime": 1785519938.433786,
+    "ast_hash": "6a0cac199fc8de788af2cdfb578bb2ae",
     "semantic_hash": ""
   },
   "NutriMitra/client/src/pages/RegisterPage.tsx": {
-    "mtime": 1785690947.6106172,
-    "ast_hash": "24b227367953a249d227b19f42a5162b",
-    "semantic_hash": ""
+    "mtime": 1784916878.5990803,
+    "ast_hash": "283bb6a3701052f3fa6f02cc1e5c8776",
+    "semantic_hash": "283bb6a3701052f3fa6f02cc1e5c8776"
   },
   "NutriMitra/client/tsconfig.app.json": {
     "mtime": 1784738462.9337287,
@@ -215,8 +215,8 @@
     "semantic_hash": "75288b6a93ee094368043b175fc5ad90"
   },
   "NutriMitra/client/src/pages/FoodBrowsePage.tsx": {
-    "mtime": 1785691051.9756725,
-    "ast_hash": "1ef6a489fb063b8423023d3da06ac791",
+    "mtime": 1785519093.829877,
+    "ast_hash": "d6ff1219f8ade6e5892a9bdf0dcc6466",
     "semantic_hash": ""
   },
   "NutriMitra/server/app/schemas/food.py": {
@@ -230,8 +230,8 @@
     "semantic_hash": ""
   },
   "NutriMitra/client/index.html": {
-    "mtime": 1785690900.3626795,
-    "ast_hash": "8a7be664c9b4bbdb488679f98653d27c",
+    "mtime": 1784916849.1078532,
+    "ast_hash": "de263e58f6eaf0c922b45a1326f19fe8",
     "semantic_hash": ""
   },
   "NutriMitra/server/requirements.txt": {
@@ -245,8 +245,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1785523024.99282,
-    "ast_hash": "5bc7a6ed8f3ce571f54fa15c1b4b8f11",
+    "mtime": 1784919620.2346456,
+    "ast_hash": "3419f7d1ce370bb26d31fecc0d5b29a4",
     "semantic_hash": ""
   },
   "NutriMitra/client/public/favicon.svg": {
@@ -297,11 +297,6 @@
   "NutriMitra/server/static/assets/index-Ib34DWp8.js": {
     "mtime": 1785519949.7432187,
     "ast_hash": "9cc5f7e3a92f6e0cdadfdca26395b07d",
-    "semantic_hash": ""
-  },
-  "NutriMitra/client/src/components/ThaliRing.tsx": {
-    "mtime": 1785690917.5562274,
-    "ast_hash": "158db44b4b70f8c8b1a7d6a6ae3345d5",
     "semantic_hash": ""
   }
 }
