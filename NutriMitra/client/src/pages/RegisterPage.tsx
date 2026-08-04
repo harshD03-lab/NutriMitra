@@ -69,11 +69,11 @@ export default function RegisterPage() {
           </span>
 
           <h1 className="mt-6 font-display text-4xl font-bold leading-[1.08] sm:text-5xl lg:text-6xl">
-            Your daily thali,
+            A diet plan that
             <br />
-            tuned to{' '}
+            does the{' '}
             <span className="relative text-saffron-deep">
-              your body
+              thinking for you
               <span
                 aria-hidden
                 className="absolute inset-x-0 -bottom-1 h-3 -rotate-1 rounded-full bg-saffron-soft"
@@ -82,9 +82,9 @@ export default function RegisterPage() {
           </h1>
 
           <p className="mt-6 max-w-lg text-lg leading-relaxed text-clay">
-            NutriMitra reads your age, activity and health conditions, then a
-            kNN engine picks real Indian foods that fit your calorie and
-            macro targets. No guesswork — just a plan that tastes like home.
+            Tell NutriMitra your age, lifestyle and health conditions. It turns
+            them into a safe daily menu — then explains every pick in plain
+            words, so you finally understand what your body needs.
           </p>
 
           <div className="mt-8 grid max-w-md grid-cols-3 gap-4">
@@ -205,19 +205,19 @@ export default function RegisterPage() {
       <section className="border-y border-rim bg-cream">
         <div className="mx-auto grid max-w-6xl gap-6 px-4 py-14 sm:px-6 md:grid-cols-3">
           <FeatureCard
-            icon="◎"
-            title="A real Indian pantry"
-            body="1,014 foods from the ICMR-NIN composition database — dal, roti, paneer, idli and everything between."
+            icon="☰"
+            title="Explained in plain words"
+            body="Every food and every reason behind it said simply — no diet jargon, no guesswork."
           />
           <FeatureCard
             icon="✚"
-            title="A safety-first filter"
-            body="Hard-blocks foods that clash with diabetes, hypertension, PCOS, kidney or heart conditions."
+            title="Built around your conditions"
+            body="Tell us about diabetes, hypertension, PCOS, kidney or heart conditions — unsafe foods are filtered out automatically."
           />
           <FeatureCard
             icon="◉"
-            title="kNN, not guesswork"
-            body="A nearest-neighbours engine matches foods to your calorie, protein, carb and fat targets."
+            title="Indian foods you know"
+            body="Meals drawn from 1,014 ICMR-NIN foods you actually recognise — dal, roti, paneer, idli and more."
           />
         </div>
       </section>
@@ -225,14 +225,14 @@ export default function RegisterPage() {
       {/* How it works */}
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <h2 className="text-center font-display text-3xl font-bold">
-          From your body to a thali in four steps
+          From your profile to a plan in four steps
         </h2>
         <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            ['Tell us about you', 'Age, gender, height, weight, activity — and any conditions we should avoid.'],
-            ['Set your targets', 'BMR via Mifflin-St Jeor, then TDEE and macro split for your diet type.'],
-            ['AI builds the plan', 'kNN scores real foods and assembles a day of meals that hits your numbers.'],
-            ['Save it for later', 'Every plan lands in your history. Reload or regenerate anytime.'],
+            ['Tell us about you', 'Age, gender, height, weight, activity — and any conditions we should steer around.'],
+            ['We do the maths', 'Your needs are calculated for you — calories and macros in numbers you can actually read.'],
+            ['Receive your plan', 'A full day of familiar foods, every pick matched to your targets and explained simply.'],
+            ['Live it, refine it', 'Plans save to your history automatically. Revisit, re-plan or adjust as life changes.'],
           ].map(([title, body], i) => (
             <div
               key={title}

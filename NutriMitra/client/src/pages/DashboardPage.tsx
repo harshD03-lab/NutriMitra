@@ -37,7 +37,7 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  if (loading) return <p className="py-24 text-center text-clay">Loading your thali…</p>
+  if (loading) return <p className="py-24 text-center text-clay">Loading your plan…</p>
   if (!user) return null
 
   const updateField = (field: string, value: string | number | null) => {
@@ -123,7 +123,7 @@ export default function DashboardPage() {
           disabled={!canGenerate || generating}
           className="cursor-pointer rounded-full bg-saffron px-6 py-3 font-semibold text-white shadow-md shadow-saffron/30 transition-all hover:bg-saffron-deep hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {generating ? 'Cooking…' : 'Generate my thali'}
+          {generating ? 'Planning…' : 'Generate my plan'}
         </button>
       </header>
 
@@ -139,10 +139,10 @@ export default function DashboardPage() {
 
       <section className="rounded-3xl border border-rim bg-cream p-6 sm:p-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-display text-2xl font-bold">Your AI thali</h2>
+          <h2 className="font-display text-2xl font-bold">Your meal plan</h2>
           {!canGenerate && (
             <p className="font-mono text-xs text-clay">
-              Fill in age, gender, height, weight and activity to cook one.
+              Fill in age, gender, height, weight and activity to build one.
             </p>
           )}
         </div>
@@ -157,7 +157,7 @@ export default function DashboardPage() {
           <div className="mt-6 animate-pop">
             {viewingPlan && (
               <p className="mb-4 text-sm text-clay">
-                Viewing a saved thali from {formatDate(viewingPlan.created_at)}{' '}
+                Viewing a saved plan from {formatDate(viewingPlan.created_at)}{' '}
                 <button
                   onClick={() => { setViewingPlan(null); setPlan(null) }}
                   className="ml-1 cursor-pointer font-semibold text-saffron-deep hover:underline"
@@ -208,7 +208,7 @@ function TargetsCard({ user }: { user: UserProfile }) {
     <section className="rounded-3xl border border-rim bg-cream p-6 sm:p-8">
       <h2 className="font-display text-2xl font-bold">Today's targets</h2>
       <p className="mt-1 font-mono text-xs text-clay">
-        Mifflin-St Jeor BMR → TDEE, split by your diet type
+        What your body needs today, based on your profile
       </p>
       <div className="mt-6 flex flex-wrap items-center gap-10">
         <ThaliRing
@@ -476,7 +476,7 @@ function HistorySection({
       <h2 className="font-display text-2xl font-bold">Plan history</h2>
       {plans.length === 0 ? (
         <p className="mt-3 font-mono text-sm text-clay">
-          No saved thalis yet — generate one and it lands here.
+          No saved plans yet — build one and it lands here.
         </p>
       ) : (
         <ul className="mt-4 divide-y divide-rim">

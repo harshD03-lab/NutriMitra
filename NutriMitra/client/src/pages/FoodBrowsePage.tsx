@@ -114,7 +114,7 @@ export default function FoodBrowsePage() {
       )}
 
       {loading ? (
-        <p className="py-20 text-center text-clay">Loading the pantry…</p>
+        <p className="py-20 text-center text-clay">Loading foods…</p>
       ) : items.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-rim bg-cream py-20 text-center">
           <p className="font-display text-xl font-semibold">No foods match</p>
