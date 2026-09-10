@@ -128,7 +128,7 @@ User Profile → Nutrient Engine (BMR/TDEE) → Hard Filter (medical safety)
 
 ## Dataset
 
-The project is designed to work with the **ICMR-National Institute of Nutrition (NIN) Indian Food Composition Database**. The database is currently seeded with **1,014 foods** imported from a processed CSV; the seed script auto-detects and maps diverse column name formats. A `pdf_extractor` script is also included for parsing the full **IFCT2017** dataset (585 pages, PDF is gitignored).
+The project is designed to work with the **ICMR-National Institute of Nutrition (NIN) Indian Food Composition Database**. The database is currently seeded with **2,260 foods** imported from a processed CSV; the seed script auto-detects and maps diverse column name formats. A `pdf_extractor` script is also included for parsing the full **IFCT2017** dataset (585 pages, PDF is gitignored).
 
 ```powershell
 cd NutriMitra\server
