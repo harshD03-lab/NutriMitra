@@ -95,7 +95,14 @@ export default function DashboardPage() {
     }
   }
 
-  const canGenerate = Boolean(user.age && user.gender && user.height_cm && user.weight_kg && user.activity_level)
+  const canGenerate = Boolean(
+    user.age && 
+    user.gender && 
+    user.height_cm && 
+    user.weight_kg && 
+    user.activity_level && 
+    user.diet_type
+  )
   const shownPlan = viewingPlan
     ? {
         meal_plan: viewingPlan.meal_plan,
@@ -108,7 +115,7 @@ export default function DashboardPage() {
     : plan
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 px-4 py-10 sm:px-6">
+    <div className="mx-auto max-w-6xl space-y-8 px-4 py-10 sm:px-6 relative pb-24">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="font-mono text-[11px] uppercase tracking-widest text-clay">
@@ -118,13 +125,6 @@ export default function DashboardPage() {
             Welcome, {user.name.split(' ')[0]}
           </h1>
         </div>
-        <button
-          onClick={generatePlan}
-          disabled={!canGenerate || generating}
-          className="cursor-pointer rounded-full bg-saffron px-6 py-3 font-semibold text-white shadow-md shadow-saffron/30 transition-all hover:bg-saffron-deep hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {generating ? 'Planning…' : 'Generate my plan'}
-        </button>
       </header>
 
       {message && (
@@ -133,7 +133,11 @@ export default function DashboardPage() {
         </p>
       )}
 
-      {canGenerate && <TargetsCard user={user} />}
+      {canGenerate && (
+        <section className="rounded-3xl border border-rim bg-cream p-6 sm:p-8">
+          <TargetsCard user={user} />
+        </section>
+      )}
 
       <ProfileCard user={user} updateField={updateField} />
 
@@ -142,7 +146,7 @@ export default function DashboardPage() {
           <h2 className="font-display text-2xl font-bold">Your meal plan</h2>
           {!canGenerate && (
             <p className="font-mono text-xs text-clay">
-              Fill in age, gender, height, weight and activity to build one.
+              Fill in age, gender, height, weight, activity and diet to build one.
             </p>
           )}
         </div>
@@ -400,6 +404,22 @@ function MealPlanView({ plan }: { plan: RecommendationResponse }) {
           </ul>
         </div>
       )}
+      <HistorySection
+        plans={savedPlans}
+        onOpen={openSavedPlan}
+        onDelete={removeSavedPlan}
+      />
+
+      {/* Fixed Generate button - bottom right corner */}
+      <div className="fixed bottom-6 right-6 z-50">
+        <button
+          onClick={generatePlan}
+          disabled={!canGenerate || generating}
+          className="cursor-pointer rounded-full bg-saffron px-6 py-3 font-semibold text-white shadow-lg shadow-saffron/30 transition-all hover:bg-saffron-deep hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {generating ? 'Planning…' : 'Generate my plan'}
+        </button>
+      </div>
     </div>
   )
 }

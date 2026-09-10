@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Float, Integer, String
+from sqlalchemy import Column, Float, Integer, String, Boolean
 
 from app.core.database import Base
 
@@ -22,3 +22,5 @@ class FoodItem(Base):
     zinc_mg = Column(Float, nullable=True)
     serving_size_g = Column(Integer, nullable=True)
     suitable_for = Column(String, nullable=True)
+    meal_type = Column(String, nullable=True)
+    is_veg = Column(Boolean, nullable=True)

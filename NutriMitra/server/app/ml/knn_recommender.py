@@ -19,6 +19,39 @@ FEATURE_COLS = [
     "zinc_mg",
 ]
 
+MEAL_CATEGORY_MAP = {
+    "breakfast": ["breakfast", "cereal", "milk", "dairy", "eggs"],
+    "lunch": ["grains", "pulses", "rice", "vegetables", "meat", "fish", "poultry", "legumes"],
+    "dinner": ["soup", "salad", "bread", "roti"],
+    "snacks": ["snacks", "fried", "beverages", "fruits", "desserts", "sweets"],
+}
+
+
+def filter_by_meal_type(foods: list[FoodItem], meal_type: str | None) -> list[FoodItem]:
+    if not meal_type:
+        return foods
+    
+    meal_type = meal_type.lower()
+    if meal_type not in MEAL_CATEGORY_MAP:
+        return foods
+    
+    keywords = MEAL_CATEGORY_MAP[meal_type]
+    filtered_foods = []
+    
+    for food in foods:
+        category = (food.category or "").lower().strip()
+        matches = False
+        for keyword in keywords:
+            if keyword in category:
+                matches = True
+                break
+        
+        if matches:
+            filtered_foods.append(food)
+    
+    return filtered_foods
+
+
 
 def build_feature_matrix(foods: list[FoodItem]) -> np.ndarray:
     records = []
@@ -52,9 +85,19 @@ class KNNRecommender:
         self,
         targets: NutrientTargets,
         top_k: int = 5,
+        meal_type: str | None = None,
     ) -> list[FoodItem]:
         if self.model is None or self.feature_matrix is None:
             return []
+        
+        filtered_foods = filter_by_meal_type(self.foods, meal_type)
+        filtered_foods = filtered_foods[:min(len(filtered_foods), top_k * 2)]
+        
+        if not filtered_foods:
+            return []
+        
+        filtered_feature_matrix = build_feature_matrix(filtered_foods)
+        
         query = np.array(
             [
                 [
@@ -72,5 +115,6 @@ class KNNRecommender:
                 ]
             ]
         )
+        
         distances, indices = self.model.kneighbors(query)
-        return [self.foods[i] for i in indices[0]]
+        return [filtered_foods[i] for i in indices[0]]
