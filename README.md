@@ -148,6 +148,4 @@ cd NutriMitra\server
 
 ---
 
-## License
 
-MIT
