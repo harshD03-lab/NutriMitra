@@ -78,10 +78,10 @@ def generate_plan(
         age=_resolve(profile.age, current.age, 30),
         gender=_resolve(profile.gender, current.gender, "male"),
         activity_level=_resolve(profile.activity_level, current.activity_level, "sedentary"),
-        diet_type=profile.diet_type or current.diet_type,
+        diet_type=_resolve(profile.diet_type, current.diet_type, "balanced"),
     )
 
-    conditions = profile.medical_conditions or current.medical_conditions
+    conditions = _resolve(profile.medical_conditions, current.medical_conditions, None)
     filtered_foods = hard_filter(foods, conditions)
 
     if not filtered_foods:

@@ -47,7 +47,7 @@ export default function DashboardPage() {
     setTimeout(() => setMessage(''), 3000)
   }
 
-  const generatePlan = async () => {
+    const generatePlan = async () => {
     if (!token) return
     setGenerating(true)
     setError('')
@@ -59,7 +59,7 @@ export default function DashboardPage() {
         weight_kg: user.weight_kg,
         activity_level: user.activity_level,
         diet_type: user.diet_type,
-        medical_conditions: user.medical_conditions,
+        ...(user.medical_conditions ? { medical_conditions: user.medical_conditions } : {}),
       }
       const data = await getRecommendations(token, profile)
       setPlan(data)
@@ -133,13 +133,21 @@ export default function DashboardPage() {
         </p>
       )}
 
-      {canGenerate && (
-        <section className="rounded-3xl border border-rim bg-cream p-6 sm:p-8">
-          <TargetsCard user={user} />
-        </section>
-      )}
+       <ProfileCard user={user} updateField={updateField} />
 
-      <ProfileCard user={user} updateField={updateField} />
+        {canGenerate && (
+          <>
+            <div className="flex justify-center mt-6">
+              <button
+                onClick={generatePlan}
+                disabled={generating}
+                className="cursor-pointer rounded-full bg-saffron px-6 py-3 font-semibold text-white shadow-lg shadow-saffron/30 transition-all hover:bg-saffron-deep hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {generating ? 'Planning…' : 'Generate My Meal Plan'}
+              </button>
+            </div>
+          </>
+        )}
 
       <section className="rounded-3xl border border-rim bg-cream p-6 sm:p-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
