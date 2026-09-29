@@ -47,7 +47,7 @@ export default function DashboardPage() {
     setTimeout(() => setMessage(''), 3000)
   }
 
-    const generatePlan = async () => {
+  const generatePlan = async () => {
     if (!token) return
     setGenerating(true)
     setError('')
@@ -133,21 +133,25 @@ export default function DashboardPage() {
         </p>
       )}
 
-       <ProfileCard user={user} updateField={updateField} />
+      {canGenerate && (
+        <section className="rounded-3xl border border-rim bg-cream p-6 sm:p-8">
+          <TargetsCard user={user} />
+        </section>
+      )}
 
-        {canGenerate && (
-          <>
-            <div className="flex justify-center mt-6">
-              <button
-                onClick={generatePlan}
-                disabled={generating}
-                className="cursor-pointer rounded-full bg-saffron px-6 py-3 font-semibold text-white shadow-lg shadow-saffron/30 transition-all hover:bg-saffron-deep hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {generating ? 'Planning…' : 'Generate My Meal Plan'}
-              </button>
-            </div>
-          </>
-        )}
+      <ProfileCard user={user} updateField={updateField} />
+
+      {canGenerate && (
+        <div className="flex justify-center">
+          <button
+            onClick={generatePlan}
+            disabled={generating}
+            className="cursor-pointer rounded-full bg-saffron px-6 py-3 font-semibold text-white shadow-lg shadow-saffron/30 transition-all hover:bg-saffron-deep hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {generating ? 'Planning…' : 'Generate My Meal Plan'}
+          </button>
+        </div>
+      )}
 
       <section className="rounded-3xl border border-rim bg-cream p-6 sm:p-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -412,22 +416,6 @@ function MealPlanView({ plan }: { plan: RecommendationResponse }) {
           </ul>
         </div>
       )}
-      <HistorySection
-        plans={savedPlans}
-        onOpen={openSavedPlan}
-        onDelete={removeSavedPlan}
-      />
-
-      {/* Fixed Generate button - bottom right corner */}
-      <div className="fixed bottom-6 right-6 z-50">
-        <button
-          onClick={generatePlan}
-          disabled={!canGenerate || generating}
-          className="cursor-pointer rounded-full bg-saffron px-6 py-3 font-semibold text-white shadow-lg shadow-saffron/30 transition-all hover:bg-saffron-deep hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {generating ? 'Planning…' : 'Generate my plan'}
-        </button>
-      </div>
     </div>
   )
 }

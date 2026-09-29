@@ -9,8 +9,22 @@ async function request(method: string, path: string, body?: unknown, token?: str
     body: body ? JSON.stringify(body) : undefined,
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(err.detail || 'Request failed')
+    const text = await res.text()
+    let detail = ''
+    try {
+      const data = JSON.parse(text)
+      if (typeof data?.detail === 'string') detail = data.detail
+      else if (Array.isArray(data?.detail)) {
+        detail = data.detail
+          .map((d: { msg?: string; loc?: unknown[] }) =>
+            d.msg ? `${d.loc?.slice(1).join('.') || 'field'}: ${d.msg}` : JSON.stringify(d))
+          .join('; ')
+      } else if (data?.detail) detail = JSON.stringify(data.detail)
+    } catch {
+      detail = text.slice(0, 300)
+    }
+    if (!detail) detail = res.statusText || `HTTP ${res.status}`
+    throw new Error(detail)
   }
   return res.json()
 }

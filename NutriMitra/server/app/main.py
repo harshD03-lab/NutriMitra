@@ -1,14 +1,19 @@
+import logging
+import traceback
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException
 
 from app.api.v1.api import router as v1_router
 from app.core.config import settings
 from app.core.database import Base, engine
+
+logger = logging.getLogger("nutrimitra")
+logging.basicConfig(level=logging.INFO)
 
 
 @asynccontextmanager
@@ -19,6 +24,23 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
 app.include_router(v1_router)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error(
+        "Unhandled error on %s %s\n%s",
+        request.method,
+        request.url.path,
+        traceback.format_exc(),
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": f"Server error while handling {request.url.path}: "
+                      f"{type(exc).__name__}: {exc}. Check the server logs for details."
+        },
+    )
 
 static_dir = Path(__file__).resolve().parent.parent / "static"
 assets_dir = static_dir / "assets"

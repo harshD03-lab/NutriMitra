@@ -73,10 +73,19 @@ class KNNRecommender:
         self.feature_matrix: np.ndarray | None = None
 
     def fit(self, foods: list[FoodItem]):
-        self.foods = foods
-        self.feature_matrix = build_feature_matrix(foods)
+        seen: set[str] = set()
+        unique: list[FoodItem] = []
+        for f in foods:
+            key = (f.name or "").strip().lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(f)
+
+        self.foods = unique
+        self.feature_matrix = build_feature_matrix(unique)
         self.model = NearestNeighbors(
-            n_neighbors=min(self.n_neighbors, len(foods)),
+            n_neighbors=min(self.n_neighbors, len(unique)),
             metric="cosine",
         )
         self.model.fit(self.feature_matrix)
@@ -89,15 +98,11 @@ class KNNRecommender:
     ) -> list[FoodItem]:
         if self.model is None or self.feature_matrix is None:
             return []
-        
-        filtered_foods = filter_by_meal_type(self.foods, meal_type)
-        filtered_foods = filtered_foods[:min(len(filtered_foods), top_k * 2)]
-        
-        if not filtered_foods:
+
+        candidates = filter_by_meal_type(self.foods, meal_type)
+        if not candidates:
             return []
-        
-        filtered_feature_matrix = build_feature_matrix(filtered_foods)
-        
+
         query = np.array(
             [
                 [
@@ -115,6 +120,15 @@ class KNNRecommender:
                 ]
             ]
         )
-        
-        distances, indices = self.model.kneighbors(query)
-        return [filtered_foods[i] for i in indices[0]]
+
+        if candidates is self.foods:
+            distances, indices = self.model.kneighbors(query)
+            return [self.foods[i] for i in indices[0]]
+
+        local_model = NearestNeighbors(
+            n_neighbors=min(self.n_neighbors, len(candidates)),
+            metric="cosine",
+        )
+        local_model.fit(build_feature_matrix(candidates))
+        distances, indices = local_model.kneighbors(query)
+        return [candidates[i] for i in indices[0]]
