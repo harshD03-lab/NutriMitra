@@ -22,7 +22,13 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    try:
+        return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    except Exception as e:
+        print(f"Error creating access token: {e}")
+        print(f"SECRET_KEY: {settings.SECRET_KEY}")
+        print(f"ALGORITHM: {settings.ALGORITHM}")
+        raise
 
 
 def decode_access_token(token: str) -> dict | None:
