@@ -21,8 +21,38 @@ async def lifespan(app: FastAPI):
     try:
         Base.metadata.create_all(bind=engine)
         print("Database tables created successfully")
+        
+        # Seed the database with ICMR-NIN data if it's empty
+        from app.data.seed_foods import load_icmr_data
+        import os
+        
+        # Check if we have food data already
+        from app.core.database import SessionLocal
+        from app.models.food_item import FoodItem
+        
+        db = SessionLocal()
+        try:
+            food_count = db.query(FoodItem).count()
+            if food_count == 0:
+                print("No food data found, seeding ICMR-NIN dataset...")
+                # Use relative paths that work in Vercel
+                food_csv = "./input.csv"
+                recipe_csv = "./Indian_Food_Ingredients_Nutrition_CookingMethods.csv"
+                db_path = "./nutrimitra.db"
+                
+                # Check if CSV files exist
+                if os.path.exists(food_csv):
+                    count, recipe_count = load_icmr_data(food_csv, db_path)
+                    print(f"Seeded {count} food items and {recipe_count} recipes")
+                else:
+                    print(f"Warning: Food CSV not found at {food_csv}")
+            else:
+                print(f"Database already contains {food_count} food items, skipping seed")
+        finally:
+            db.close()
+            
     except Exception as e:
-        print(f"Error creating database tables: {e}")
+        print(f"Error during startup: {e}")
         raise
     yield
 
