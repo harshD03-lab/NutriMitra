@@ -49,7 +49,8 @@ if static_dir.exists() and assets_dir.exists():
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def spa(full_path: str):
-        if full_path.startswith("v1/") or full_path.startswith("assets/"):
+        if full_path.startswith("v1/"):
+            # If it's an API path that wasn't found by the API router, return 404
             raise HTTPException(status_code=404, detail="Not found")
         return FileResponse(static_dir / "index.html")
 else:
