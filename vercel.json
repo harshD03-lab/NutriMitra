@@ -1,7 +1,33 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "client": {
+      "root": "NutriMitra/client",
+      "framework": "vite"
+    },
+    "server": {
+      "root": "NutriMitra/server",
+      "framework": "fastapi"
+    }
+  },
   "rewrites": [
-    { "source": "/api/v1/(.*)", "destination": "/api/v1/$1" },
-    { "source": "/api/assets/(.*)", "destination": "/api/assets/$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/api/v1/(.*)",
+      "destination": {
+        "service": "server"
+      }
+    },
+    {
+      "source": "/api/assets/(.*)",
+      "destination": {
+        "service": "server"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "client"
+      }
+    }
   ]
 }

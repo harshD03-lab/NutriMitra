@@ -1,4 +1,4 @@
-const BASE = ''
+const BASE = '/api/v1'
 
 async function request(method: string, path: string, body?: unknown, token?: string) {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
