@@ -43,4 +43,4 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     except Exception as e:
         # Log the exception for debugging
         print(f"Unexpected error in login: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
