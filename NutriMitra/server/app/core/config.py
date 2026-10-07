@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = os.getenv("DATABASE_URL") or (
         "sqlite:////tmp/nutrimitra.db" if os.getenv("VERCEL") else "./nutrimitra.db"
     )
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "change-me-in-production")
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "thisisasecretkey123456789012")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
 
