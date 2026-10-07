@@ -166,8 +166,21 @@ def _parse_meal_type(meal_str: str | None) -> str | None:
     return meal_mapping.get(meal_str, None)
 
 
-def load_icmr_data(csv_path: str, db_path: str = r'C:\Users\harsh\OneDrive\Documents\ALL Projext\Open code\Diet System\NutriMitra\server\nutrimitra.db') -> tuple[int, int]:
-    engine = create_engine(f"sqlite:///{db_path}")
+def load_icmr_data(csv_path: str, db_path: str) -> tuple[int, int]:
+    import os
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from app.core.database import Base
+    
+    # Handle both sqlite:/// prefixed paths and raw file paths
+    if db_path.startswith("sqlite:///"):
+        connection_string = db_path
+    else:
+        # Make sure we have an absolute path for the file
+        if not os.path.isabs(db_path):
+            db_path = os.path.abspath(db_path)
+        connection_string = f"sqlite:///{db_path}"
+    engine = create_engine(connection_string)
     Base.metadata.create_all(bind=engine)
     SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
     db = SessionLocal()

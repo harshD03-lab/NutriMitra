@@ -47,7 +47,9 @@ async def lifespan(app: FastAPI):
                 
                 # Check if CSV files exist
                 if os.path.exists(food_csv) and os.path.exists(recipe_csv):
-                    count, recipe_count = load_icmr_data(food_csv, db_path)
+                    # Fix the database path for SQLAlchemy - needs sqlite:/// prefix
+                    db_connection_string = f"sqlite:///{db_path}"
+                    count, recipe_count = load_icmr_data(food_csv, db_connection_string)
                     print(f"Seeded {count} food items and {recipe_count} recipes")
                 else:
                     if not os.path.exists(food_csv):
