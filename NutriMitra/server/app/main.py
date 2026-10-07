@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
-app.include_router(v1_router, prefix="/api")
+app.include_router(v1_router)
 
 
 @app.exception_handler(Exception)
