@@ -35,17 +35,25 @@ async def lifespan(app: FastAPI):
             food_count = db.query(FoodItem).count()
             if food_count == 0:
                 print("No food data found, seeding ICMR-NIN dataset...")
-                # Use relative paths that work in Vercel
-                food_csv = "./input.csv"
-                recipe_csv = "./Indian_Food_Ingredients_Nutrition_CookingMethods.csv"
-                db_path = "./nutrimitra.db"
+                # Use absolute paths based on current file location for Vercel compatibility
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                food_csv = os.path.join(current_dir, "input.csv")
+                recipe_csv = os.path.join(current_dir, "Indian_Food_Ingredients_Nutrition_CookingMethods.csv")
+                db_path = os.path.join(current_dir, "nutrimitra.db")
+                
+                print(f"Looking for food CSV at: {food_csv}")
+                print(f"Looking for recipe CSV at: {recipe_csv}")
+                print(f"Database path: {db_path}")
                 
                 # Check if CSV files exist
-                if os.path.exists(food_csv):
+                if os.path.exists(food_csv) and os.path.exists(recipe_csv):
                     count, recipe_count = load_icmr_data(food_csv, db_path)
                     print(f"Seeded {count} food items and {recipe_count} recipes")
                 else:
-                    print(f"Warning: Food CSV not found at {food_csv}")
+                    if not os.path.exists(food_csv):
+                        print(f"Warning: Food CSV not found at {food_csv}")
+                    if not os.path.exists(recipe_csv):
+                        print(f"Warning: Recipe CSV not found at {recipe_csv}")
             else:
                 print(f"Database already contains {food_count} food items, skipping seed")
         finally:
@@ -53,6 +61,8 @@ async def lifespan(app: FastAPI):
             
     except Exception as e:
         print(f"Error during startup: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         raise
     yield
 
