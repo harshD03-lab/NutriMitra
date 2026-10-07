@@ -1,0 +1,338 @@
+@startuml nutrimitra_class_diagram
+title NutriMitra - Class Diagram (Journey: Register to Meal Plan)
+
+skinparam shadowing true
+skinparam dpi 130
+skinparam nodesep 40
+skinparam ranksep 55
+skinparam class {
+  BackgroundColor White
+  BorderColor #444444
+  FontSize 13
+  AttributeFontSize 12
+  ArrowColor #333333
+  FontStyle bold
+}
+skinparam package {
+  BackgroundColor #F8FAFC
+  BorderColor #8093A8
+  FontSize 15
+  FontStyle bold
+}
+skinparam note {
+  BackgroundColor #FFF7D6
+  BorderColor #C9A227
+  FontSize 12
+}
+skinparam arrowcolor #333333
+
+' ============ FRONTEND ============
+package "Frontend  (React + TypeScript, client/src)" as FE {
+
+  class RegisterPage <<page>> {
+    + tab: string
+    + form: object
+    + error: string
+    --
+    + submitLogin()
+    + submitRegister()
+  }
+
+  class DashboardPage <<page>> {
+    + user: UserProfile
+    + plan: RecommendationResponse
+    + savedPlans: list
+    + generating: boolean
+    --
+    + generatePlan()
+    + loadHistory()
+  }
+
+  class FoodBrowsePage <<page>> {
+    + search: string
+    + category: string
+    + items: list
+    + skip: int
+    --
+    + searchFoods()
+    + pickCategory()
+  }
+
+  class ApiClient <<api-client>> {
+    + register(payload)
+    + login(payload)
+    + getMe(token)
+    + getRecommendations(token, profile)
+    + getFoods(token, params)
+    + getPlans(token)
+    + deletePlan(token, id)
+  }
+
+  class FrontendTypes <<interface>> {
+    + UserProfile
+    + MealItem
+    + MealPlan
+    + RecommendationResponse
+    + FoodItem
+    + PlanSummary
+  }
+}
+
+' ============ API LAYER ============
+package "API Layer  (FastAPI, server/app/api/v1)" as API {
+
+  class FastAPIApp <<app>> {
+    + lifespan()
+    + mountSPA()
+    + unhandledExceptionHandler()
+  }
+
+  class AuthRouter <<router>> {
+    + register(payload: UserCreate): UserOut
+    + login(payload: LoginRequest): Token
+  }
+
+  class UsersRouter <<router>> {
+    + get_current_user(): User
+    + read_current_user(): UserOut
+  }
+
+  class FoodRouter <<router>> {
+    + list_foods(): FoodListResponse
+    + list_categories(): list
+  }
+
+  class RecommendationsRouter <<router>> {
+    + generate_plan(profile: UserProfile): RecommendationResponse
+  }
+
+  class PlansRouter <<router>> {
+    + list_plans(): list
+    + get_plan(plan_id: int): PlanOut
+    + delete_plan(plan_id: int): map
+  }
+}
+
+' ============ CORE ============
+package "Core  (server/app/core)" as CORE {
+
+  class Settings <<config>> {
+    + APP_NAME: string
+    + DATABASE_URL: string
+    + SECRET_KEY: string
+    + ALGORITHM: string
+    + ACCESS_TOKEN_EXPIRE_MINUTES: int
+  }
+
+  class Database <<config>> {
+    + Base: DeclarativeBase
+    + SessionLocal
+    --
+    + get_db(): Session
+    + create_all()
+  }
+
+  class Security <<service>> {
+    + hash_password(pw): string
+    + verify_password(plain, hashed): bool
+    + create_access_token(data): string
+    + decode_access_token(token): map
+  }
+}
+
+' ============ ML PIPELINE ============
+package "ML Pipeline  (server/app/ml)" as ML {
+
+  class NutrientEngine <<service>> {
+    + calculate_bmr(w, h, age, gender): float
+    + calculate_tdee(bmr, activity): float
+    + get_macro_split(diet_type): map
+    --
+    + derive_nutrient_targets(profile): NutrientTargets
+  }
+
+  class HardFilter <<service>> {
+    + RESTRICTIONS: map
+    --
+    + get_restriction_tags(conditions): set
+    + hard_filter(foods, conditions): list
+  }
+
+  class KNNRecommender <<service>> {
+    + n_neighbors: int
+    + model: NearestNeighbors
+    + feature_matrix
+    --
+    + fit(foods: list)
+    + recommend(targets, top_k): list
+  }
+
+  class Explainability <<service>> {
+    + explain_recommendation(food, targets): string
+  }
+}
+
+' ============ SCHEMAS ============
+package "Schemas  (Pydantic DTO, server/app/schemas)" as DTO {
+
+  class AuthSchemas <<DTO>> {
+    + UserCreate
+    + UserOut
+    + LoginRequest
+    + Token
+  }
+
+  class RecommendationSchemas <<DTO>> {
+    + UserProfile
+    + NutrientTargets
+    + MealItem
+    + MealPlan
+    + RecommendationResponse
+  }
+
+  class PlanFoodSchemas <<DTO>> {
+    + PlanSummary
+    + PlanOut
+    + FoodOut
+    + FoodListResponse
+  }
+}
+
+' ============ PERSISTENCE ============
+package "Persistence  (SQLAlchemy ORM, server/app/models)" as ORM {
+
+  class User <<entity>> {
+    + id: int <<PK>>
+    + email: string
+    + hashed_password: string
+    + name: string
+    + age: int
+    + gender: string
+    + height_cm: int
+    + weight_kg: int
+    + activity_level: string
+    + diet_type: string
+    + medical_conditions: string
+    + is_active: boolean
+  }
+
+  class FoodItem <<entity>> {
+    + id: int <<PK>>
+    + name: string
+    + category: string
+    + energy_kcal: float
+    + protein_g: float
+    + carbs_g: float
+    + fat_g: float
+    + fiber_g: float
+    + calcium_mg: float
+    + iron_mg: float
+    + vitamin_c_mg: float
+    + vitamin_a_mcg: float
+    + folate_mcg: float
+    + zinc_mg: float
+    + serving_size_g: int
+    + suitable_for: string
+    + meal_type: string
+    + is_veg: boolean
+  }
+
+  class DietPlan <<entity>> {
+    + id: int <<PK>>
+    + user_id: int <<FK>>
+    + meal_data: text (JSON)
+    + total_calories: float
+    + total_protein: float
+    + total_carbs: float
+    + total_fat: float
+    + created_at: string
+  }
+}
+
+' ============ JOURNEY NOTES ============
+note top of RegisterPage
+  STEP 1 - Visitor lands on the site, registers or logs in
+end note
+note right of ApiClient
+  STEP 2 - Browser calls the API with a JWT bearer token
+end note
+note bottom of RecommendationsRouter
+  STEP 3 - User submits health profile, plan is generated
+end note
+note bottom of KNNRecommender
+  STEP 4 - Cosine KNN ranks foods against nutrient targets
+end note
+note bottom of DietPlan
+  STEP 5 - Result is persisted and shown as the meal plan
+end note
+
+' ============ RELATIONSHIPS ============
+' Frontend
+RegisterPage --> ApiClient : uses
+DashboardPage --> ApiClient : uses
+FoodBrowsePage --> ApiClient : uses
+ApiClient ..> FrontendTypes : typed as
+FrontendTypes ..> RecommendationSchemas : JSON mapping
+
+' HTTP layer
+ApiClient ..> AuthRouter : HTTP / JSON
+ApiClient ..> UsersRouter : HTTP / JSON
+ApiClient ..> FoodRouter : HTTP / JSON
+ApiClient ..> RecommendationsRouter : HTTP / JSON
+ApiClient ..> PlansRouter : HTTP / JSON
+
+' App composition
+FastAPIApp --> AuthRouter : mounts
+FastAPIApp --> UsersRouter : mounts
+FastAPIApp --> FoodRouter : mounts
+FastAPIApp --> RecommendationsRouter : mounts
+FastAPIApp --> PlansRouter : mounts
+
+' Route internals
+AuthRouter --> AuthSchemas : request / response
+UsersRouter --> AuthSchemas : response
+UsersRouter --> Security : verifies JWT
+UsersRouter --> User : loads
+FoodRouter --> PlanFoodSchemas : response
+RecommendationsRouter --> RecommendationSchemas : request / response
+RecommendationsRouter --> NutrientEngine : uses
+RecommendationsRouter --> HardFilter : uses
+RecommendationsRouter --> KNNRecommender : uses
+RecommendationsRouter --> Explainability : uses
+RecommendationsRouter --> FoodItem : reads all
+RecommendationsRouter --> DietPlan : persists
+PlansRouter --> PlanFoodSchemas : response
+PlansRouter --> DietPlan : CRUD
+
+' ML internals
+NutrientEngine --> RecommendationSchemas : builds NutrientTargets
+KNNRecommender --> RecommendationSchemas : queries NutrientTargets
+KNNRecommender --> FoodItem : fits on
+HardFilter --> FoodItem : excludes by condition
+Explainability --> FoodItem : annotates
+
+' Core wiring
+Security --> Settings : reads
+Database --> Settings : reads
+
+' Domain relations
+User "1" --> "0..*" DietPlan : owns
+
+note right of ORM
+  Every <<entity>> is loaded and saved through
+  the Session returned by Database.get_db()
+end note
+
+' ============ LEGEND ============
+legend bottom
+  |= Stereotype |= Meaning |
+  | <<page>> | React page component |
+  | <<api-client>> | Frontend HTTP client (api.ts) |
+  | <<router>> | FastAPI APIRouter |
+  | <<service>> | Business / ML logic function module |
+  | <<DTO>> | Pydantic request-response schema |
+  | <<entity>> | SQLAlchemy ORM model (table) |
+  | <<config>> | Configuration and DB bootstrap |
+end legend
+
+@enduml

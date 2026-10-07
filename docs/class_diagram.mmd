@@ -1,0 +1,264 @@
+---
+title: "NutriMitra - Class Diagram (Journey: Register to Meal Plan)"
+---
+classDiagram
+    %% ================= FRONTEND =================
+    class RegisterPage {
+        <<page>> client/src/pages/RegisterPage.tsx
+        + tab: string
+        + form: object
+        + error: string
+        + submitLogin()
+        + submitRegister()
+    }
+    class DashboardPage {
+        <<page>> client/src/pages/DashboardPage.tsx
+        + user: UserProfile
+        + plan: RecommendationResponse
+        + savedPlans: list
+        + generating: boolean
+        + generatePlan()
+        + loadHistory()
+    }
+    class FoodBrowsePage {
+        <<page>> client/src/pages/FoodBrowsePage.tsx
+        + search: string
+        + category: string
+        + items: list
+        + skip: int
+        + searchFoods()
+        + pickCategory()
+    }
+    class ApiClient {
+        <<api-client>> client/src/api.ts
+        + register(payload)
+        + login(payload)
+        + getMe(token)
+        + getRecommendations(token, profile)
+        + getFoods(token, params)
+        + getPlans(token)
+        + deletePlan(token, id)
+    }
+    class FrontendTypes {
+        <<interface>> TS types
+        + UserProfile
+        + MealItem
+        + MealPlan
+        + RecommendationResponse
+        + FoodItem
+        + PlanSummary
+    }
+
+    %% ================= API LAYER =================
+    class FastAPIApp {
+        <<app>> server/app/main.py
+        + lifespan()
+        + mountSPA()
+        + unhandledExceptionHandler()
+    }
+    class AuthRouter {
+        <<router>> /v1/auth
+        + register(UserCreate) UserOut
+        + login(LoginRequest) Token
+    }
+    class UsersRouter {
+        <<router>> /v1/users
+        + get_current_user() User
+        + read_current_user() UserOut
+    }
+    class FoodRouter {
+        <<router>> /v1/food
+        + list_foods() FoodListResponse
+        + list_categories() list
+    }
+    class RecommendationsRouter {
+        <<router>> /v1/recommendations
+        + generate_plan(UserProfile) RecommendationResponse
+    }
+    class PlansRouter {
+        <<router>> /v1/plans
+        + list_plans() list
+        + get_plan(id) PlanOut
+        + delete_plan(id) map
+    }
+
+    %% ================= CORE =================
+    class Settings {
+        <<config>> core/config.py
+        + APP_NAME: string
+        + DATABASE_URL: string
+        + SECRET_KEY: string
+        + ALGORITHM: string
+        + ACCESS_TOKEN_EXPIRE_MINUTES: int
+    }
+    class Database {
+        <<config>> core/database.py
+        + Base: DeclarativeBase
+        + SessionLocal
+        + get_db() Session
+        + create_all()
+    }
+    class Security {
+        <<service>> core/security.py
+        + hash_password(pw) string
+        + verify_password(plain, hashed) bool
+        + create_access_token(data) string
+        + decode_access_token(token) map
+    }
+
+    %% ================= ML PIPELINE =================
+    class NutrientEngine {
+        <<service>> ml/nutrient_engine.py
+        + calculate_bmr(w, h, age, gender) float
+        + calculate_tdee(bmr, activity) float
+        + get_macro_split(diet_type) map
+        + derive_nutrient_targets(profile) NutrientTargets
+    }
+    class HardFilter {
+        <<service>> ml/hard_filter.py
+        + RESTRICTIONS: map
+        + get_restriction_tags(conditions) set
+        + hard_filter(foods, conditions) list
+    }
+    class KNNRecommender {
+        <<service>> ml/knn_recommender.py
+        + n_neighbors: int
+        + model: NearestNeighbors
+        + feature_matrix
+        + fit(foods)
+        + recommend(targets, top_k) list
+    }
+    class Explainability {
+        <<service>> ml/explainability.py
+        + explain_recommendation(food, targets) string
+    }
+
+    %% ================= SCHEMAS (DTO) =================
+    class AuthSchemas {
+        <<DTO>> schemas/user.py
+        + UserCreate
+        + UserOut
+        + LoginRequest
+        + Token
+    }
+    class RecommendationSchemas {
+        <<DTO>> schemas/recommendation.py
+        + UserProfile
+        + NutrientTargets
+        + MealItem
+        + MealPlan
+        + RecommendationResponse
+    }
+    class PlanFoodSchemas {
+        <<DTO>> schemas/plan.py, food.py
+        + PlanSummary
+        + PlanOut
+        + FoodOut
+        + FoodListResponse
+    }
+
+    %% ================= PERSISTENCE =================
+    class User {
+        <<entity>> table users
+        + id: int PK
+        + email: string
+        + hashed_password: string
+        + name: string
+        + age: int
+        + gender: string
+        + height_cm: int
+        + weight_kg: int
+        + activity_level: string
+        + diet_type: string
+        + medical_conditions: string
+        + is_active: boolean
+    }
+    class FoodItem {
+        <<entity>> table food_items
+        + id: int PK
+        + name: string
+        + category: string
+        + energy_kcal: float
+        + protein_g: float
+        + carbs_g: float
+        + fat_g: float
+        + fiber_g: float
+        + calcium_mg: float
+        + iron_mg: float
+        + vitamin_c_mg: float
+        + vitamin_a_mcg: float
+        + folate_mcg: float
+        + zinc_mg: float
+        + serving_size_g: int
+        + suitable_for: string
+        + meal_type: string
+        + is_veg: boolean
+    }
+    class DietPlan {
+        <<entity>> table diet_plans
+        + id: int PK
+        + user_id: int FK
+        + meal_data: text
+        + total_calories: float
+        + total_protein: float
+        + total_carbs: float
+        + total_fat: float
+        + created_at: string
+    }
+
+    %% ================= JOURNEY NOTES =================
+    note for RegisterPage "STEP 1 - Visitor lands, registers or logs in"
+    note for ApiClient "STEP 2 - Browser talks to API with JWT bearer token"
+    note for RecommendationsRouter "STEP 3 - User submits health profile, plan is generated"
+    note for KNNRecommender "STEP 4 - Cosine KNN ranks foods against nutrient targets"
+    note for DietPlan "STEP 5 - Result persisted and shown as the meal plan"
+
+    %% ================= RELATIONSHIPS =================
+    RegisterPage --> ApiClient : uses
+    DashboardPage --> ApiClient : uses
+    FoodBrowsePage --> ApiClient : uses
+    ApiClient ..> FrontendTypes : typed as
+    FrontendTypes ..> RecommendationSchemas : JSON mapping
+
+    ApiClient --> AuthRouter : HTTP / JSON
+    ApiClient --> UsersRouter : HTTP / JSON
+    ApiClient --> FoodRouter : HTTP / JSON
+    ApiClient --> RecommendationsRouter : HTTP / JSON
+    ApiClient --> PlansRouter : HTTP / JSON
+
+    FastAPIApp --> AuthRouter : mounts
+    FastAPIApp --> UsersRouter : mounts
+    FastAPIApp --> FoodRouter : mounts
+    FastAPIApp --> RecommendationsRouter : mounts
+    FastAPIApp --> PlansRouter : mounts
+
+    AuthRouter --> AuthSchemas : request / response
+    UsersRouter --> AuthSchemas : response
+    UsersRouter --> Security : verifies JWT
+    UsersRouter --> User : loads
+    FoodRouter --> PlanFoodSchemas : response
+    RecommendationsRouter --> RecommendationSchemas : request / response
+    RecommendationsRouter --> NutrientEngine : uses
+    RecommendationsRouter --> HardFilter : uses
+    RecommendationsRouter --> KNNRecommender : uses
+    RecommendationsRouter --> Explainability : uses
+    RecommendationsRouter --> FoodItem : reads all
+    RecommendationsRouter --> DietPlan : persists
+    PlansRouter --> PlanFoodSchemas : response
+    PlansRouter --> DietPlan : CRUD
+
+    NutrientEngine --> RecommendationSchemas : builds NutrientTargets
+    KNNRecommender --> RecommendationSchemas : queries NutrientTargets
+    KNNRecommender --> FoodItem : fits on
+    HardFilter --> FoodItem : excludes by condition
+    Explainability --> FoodItem : annotates
+
+    Security --> Settings : reads
+    Database --> Settings : reads
+    Settings ..> Security : configures
+    Settings ..> Database : configures
+
+    Database --> User : Session
+    Database --> FoodItem : Session
+    Database --> DietPlan : Session
+    User "1" --> "0..*" DietPlan : owns

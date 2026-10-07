@@ -1,0 +1,117 @@
+@startuml nutrimitra_er_diagram
+title NutriMitra - Entity Relationship Diagram  (SQLite: nutrimitra.db)
+
+skinparam dpi 130
+skinparam nodesep 60
+skinparam ranksep 70
+skinparam linetype ortho
+skinparam entity {
+  BackgroundColor White
+  BorderColor #444444
+  FontSize 16
+  FontStyle bold
+  AttributeFontSize 13
+  AttributeFontStyle italic
+}
+skinparam note {
+  BackgroundColor #FFF7D6
+  BorderColor #C9A227
+  FontSize 13
+}
+skinparam arrowcolor #333333
+
+entity "users" as USERS {
+  * id : INTEGER <<PK>>
+  --
+  email : VARCHAR <<UNIQUE, NOT NULL>>
+  hashed_password : VARCHAR <<NOT NULL>>
+  name : VARCHAR <<NOT NULL>>
+  age : INTEGER
+  gender : VARCHAR
+  height_cm : INTEGER
+  weight_kg : INTEGER
+  activity_level : VARCHAR
+  diet_type : VARCHAR
+  medical_conditions : VARCHAR
+  is_active : BOOLEAN
+}
+
+entity "diet_plans" as PLANS {
+  * id : INTEGER <<PK>>
+  --
+  user_id : INTEGER <<FK, NOT NULL>>
+  meal_data : TEXT <<JSON>>
+  total_calories : FLOAT
+  total_protein : FLOAT
+  total_carbs : FLOAT
+  total_fat : FLOAT
+  created_at : VARCHAR
+}
+
+entity "food_items" as FOODS {
+  * id : INTEGER <<PK>>
+  --
+  name : VARCHAR <<NOT NULL, INDEXED>>
+  category : VARCHAR
+  energy_kcal : FLOAT
+  protein_g : FLOAT
+  carbs_g : FLOAT
+  fat_g : FLOAT
+  fiber_g : FLOAT
+  calcium_mg : FLOAT
+  iron_mg : FLOAT
+  vitamin_c_mg : FLOAT
+  vitamin_a_mcg : FLOAT
+  folate_mcg : FLOAT
+  zinc_mg : FLOAT
+  serving_size_g : INTEGER
+  suitable_for : VARCHAR <<restriction tags>>
+  meal_type : TEXT
+  is_veg : BOOLEAN
+}
+
+entity "recipes" as RECIPES {
+  * id : INTEGER <<PK>>
+  --
+  food_id : INTEGER <<FK, NULLABLE>>
+  cuisine : VARCHAR
+  cooking_time_mins : INTEGER
+  ingredients : TEXT
+  instructions : TEXT
+}
+
+' ============ RELATIONSHIPS ============
+USERS ||--o{ PLANS : " creates "
+FOODS ||--o{ RECIPES : " has "
+
+' ============ NOTES ============
+note bottom of PLANS
+  meal_data holds the generated plan as a
+  **denormalised JSON snapshot**
+  (meal slots, food names, macros).
+  There is **no FK to food_items** -
+  the link is logical, not enforced.
+end note
+
+note bottom of RECIPES
+  Optional 1:N child table.
+  Seeded from the ingredient/recipe source
+  and not exposed by the v1 REST API.
+end note
+
+note top of FOODS
+  Independent master table (~thousands of rows,
+  loaded from the ICMR-NIN dataset CSV).
+end note
+
+' ============ LEGEND ============
+legend bottom
+  |= Marker |= Meaning |
+  | * | primary key |
+  | <<FK>> | foreign key |
+  | <<JSON>> | JSON document column (no referential integrity) |
+  | solid line with crow's foot | one parent to zero-or-many children |
+  | NOTE | orange notes explain non-enforced / unused links |
+end legend
+
+@enduml

@@ -320,13 +320,43 @@
     "semantic_hash": ""
   },
   "nutrimitra_documentation.txt": {
-    "mtime": 1790684775.056953,
-    "ast_hash": "456b418edd9a830811cf584832d34201",
+    "mtime": 1790952130.135314,
+    "ast_hash": "1f0dd7c605747bb535a4a25115d67803",
     "semantic_hash": ""
   },
   "nutrimitra_documentation.pdf": {
     "mtime": 1790684927.7896917,
     "ast_hash": "0c9aa353e4bbbf31de47ba6836169a2d",
+    "semantic_hash": ""
+  },
+  "docs/puppeteer.json": {
+    "mtime": 1791136748.4952545,
+    "ast_hash": "d784c8e43df002262deb642b9b156857",
+    "semantic_hash": ""
+  },
+  "PROJECT_GANTT_CHART.txt": {
+    "mtime": 1790955944.145006,
+    "ast_hash": "aadf432739834e88a1b3a08eee744a95",
+    "semantic_hash": ""
+  },
+  "docs/class_diagram_mermaid.png": {
+    "mtime": 1791137043.477084,
+    "ast_hash": "77369b80e04faf3c2f37031989c0c2a9",
+    "semantic_hash": ""
+  },
+  "docs/nutrimitra_class_diagram.png": {
+    "mtime": 1791140329.7408648,
+    "ast_hash": "4f1db9ab3b5fd66474f4f8066434c25e",
+    "semantic_hash": ""
+  },
+  "docs/nutrimitra_er_diagram.png": {
+    "mtime": 1791140344.78317,
+    "ast_hash": "c332becd8efc87cd0140d3e8e0b8a2a1",
+    "semantic_hash": ""
+  },
+  "docs/nutrimitra_er_diagram.svg": {
+    "mtime": 1791140325.3911436,
+    "ast_hash": "e061901bbd0baf41e0e2e3b6a8362339",
     "semantic_hash": ""
   }
 }

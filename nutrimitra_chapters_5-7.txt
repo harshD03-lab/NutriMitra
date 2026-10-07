@@ -1,0 +1,20 @@
+Chapter 05: Implementation And Testing 5.1 Implementation And Approaches 30
+5.1.1 Implementation 30
+5.1.2 Approaches 33
+5.2 Coding Details And Efficiency 34
+5.3 Testing Approach 35
+Chapter 06: Result And Discussion 6.1 Test Report 38
+6.2 User Documentation 39
+6.2.1 Authentication Module 39
+6.2.2 Food Logger Module 40
+6.2.3 Meal Planner Module 41
+6.2.4 Nutrition Tracker Module 42
+6.2.5 Water Intake Module 43
+6.2.6 Recipe Suggestion Module 44
+6.2.7 Health Condition Module 45
+6.2.8 Nearby Nutrition Services Module 46
+6.2.9 Settings & Preferences 47
+6.3 Observations 48
+Chapter 07: Conclusion 7.1 Conclusion 49
+7.2 Limitations Of The System 49
+7.3 Future Scope Of The Project 50
