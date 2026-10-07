@@ -4,8 +4,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     APP_NAME: str = "NutriMitra API"
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
+    DATABASE_URL: str = os.getenv("DATABASE_URL") or (
         "sqlite:////tmp/nutrimitra.db" if os.getenv("VERCEL") else "./nutrimitra.db"
     )
     SECRET_KEY: str = os.getenv("SECRET_KEY", "change-me-in-production")
