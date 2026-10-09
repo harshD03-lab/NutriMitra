@@ -35,9 +35,15 @@ async def lifespan(app: FastAPI):
             food_count = db.query(FoodItem).count()
             if food_count == 0:
                 print("No food data found, seeding ICMR-NIN dataset...")
-                # Use absolute paths based on current file location for Vercel compatibility
-                # Go up two levels: main.py -> app -> server
-                current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                # Use environment-aware paths for Vercel compatibility
+                if os.getenv("VERCEL"):
+                    # In Vercel serverless environment, use /tmp for writable files
+                    current_dir = "/tmp"
+                else:
+                    # In local development, use paths relative to this file
+                    # Go up two levels: main.py -> app -> server
+                    current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                
                 food_csv = os.path.join(current_dir, "input.csv")
                 recipe_csv = os.path.join(current_dir, "Indian_Food_Ingredients_Nutrition_CookingMethods.csv")
                 db_path = os.path.join(current_dir, "nutrimitra.db")
