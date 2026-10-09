@@ -95,14 +95,12 @@ export default function DashboardPage() {
     }
   }
 
-  const canGenerate = Boolean(
-    user.age && 
-    user.gender && 
-    user.height_cm && 
-    user.weight_kg && 
-    user.activity_level && 
-    user.diet_type
-  )
+  const canGenerate = user.age !== null && user.age !== undefined && user.age > 0 &&
+    user.gender !== null && user.gender !== undefined && user.gender !== "" &&
+    user.height_cm !== null && user.height_cm !== undefined && user.height_cm > 0 &&
+    user.weight_kg !== null && user.weight_kg !== undefined && user.weight_kg > 0 &&
+    user.activity_level !== null && user.activity_level !== undefined && user.activity_level !== "" &&
+    user.diet_type !== null && user.diet_type !== undefined && user.diet_type !== "";
   const shownPlan = viewingPlan
     ? {
         meal_plan: viewingPlan.meal_plan,
