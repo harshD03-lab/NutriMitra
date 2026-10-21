@@ -10,69 +10,68 @@ from starlette.exceptions import HTTPException
 
 from app.api.v1.api import router as v1_router
 from app.core.config import settings
-from app.core.database import Base, engine
+from app.core.database import Base, SessionLocal, engine, ensure_schema
+from app.data.seed_foods import DatasetError, load_food_dataset
+from app.models.food_item import FoodItem
 
 logger = logging.getLogger("nutrimitra")
 logging.basicConfig(level=logging.INFO)
+
+# Runtime state of the nutrition dataset.  The API reports a clear error when
+# the dataset could not be loaded instead of returning an empty meal plan.
+DATASET_STATUS: dict = {"available": False, "foods": 0, "error": None}
+
+
+def _seed_dataset_if_empty() -> None:
+    """Populate the food table from the bundled dataset when it is empty."""
+    db = SessionLocal()
+    try:
+        food_count = db.query(FoodItem).count()
+        if food_count > 0:
+            DATASET_STATUS.update(available=True, foods=food_count, error=None)
+            logger.info("Nutrition dataset already present with %s foods", food_count)
+            return
+        logger.info("No food data found - importing the bundled nutrition dataset")
+        result = load_food_dataset(db)
+        DATASET_STATUS.update(
+            available=True, foods=result["foods"], error=None
+        )
+        logger.info(
+            "Imported %s foods and %s recipes from %s",
+            result["foods"],
+            result["recipes"],
+            ", ".join(result["sources"]),
+        )
+    except DatasetError as exc:
+        DATASET_STATUS.update(available=False, foods=0, error=str(exc))
+        logger.error("Nutrition dataset unavailable: %s", exc)
+    except Exception as exc:  # pragma: no cover - defensive
+        db.rollback()
+        DATASET_STATUS.update(
+            available=False, foods=0, error=f"Dataset import failed: {exc}"
+        )
+        logger.error("Nutrition dataset import failed: %s", exc)
+    finally:
+        db.close()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
         Base.metadata.create_all(bind=engine)
-        print("Database tables created successfully")
-        
-        # Seed the database with ICMR-NIN data if it's empty
-        from app.data.seed_foods import load_icmr_data
-        import os
-        
-        # Check if we have food data already
-        from app.core.database import SessionLocal
-        from app.models.food_item import FoodItem
-        
-        db = SessionLocal()
-        try:
-            food_count = db.query(FoodItem).count()
-            if food_count == 0:
-                print("No food data found, seeding ICMR-NIN dataset...")
-                # Use environment-aware paths for Vercel compatibility
-                if os.getenv("VERCEL"):
-                    # In Vercel serverless environment, use /tmp for writable files
-                    current_dir = "/tmp"
-                else:
-                    # In local development, use paths relative to this file
-                    # Go up two levels: main.py -> app -> server
-                    current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                
-                food_csv = os.path.join(current_dir, "input.csv")
-                recipe_csv = os.path.join(current_dir, "Indian_Food_Ingredients_Nutrition_CookingMethods.csv")
-                db_path = os.path.join(current_dir, "nutrimitra.db")
-                
-                print(f"Looking for food CSV at: {food_csv}")
-                print(f"Looking for recipe CSV at: {recipe_csv}")
-                print(f"Database path: {db_path}")
-                
-                # Check if CSV files exist
-                if os.path.exists(food_csv) and os.path.exists(recipe_csv):
-                    # Fix the database path for SQLAlchemy - needs sqlite:/// prefix
-                    db_connection_string = f"sqlite:///{db_path}"
-                    count, recipe_count = load_icmr_data(food_csv, db_connection_string)
-                    print(f"Seeded {count} food items and {recipe_count} recipes")
-                else:
-                    if not os.path.exists(food_csv):
-                        print(f"Warning: Food CSV not found at {food_csv}")
-                    if not os.path.exists(recipe_csv):
-                        print(f"Warning: Recipe CSV not found at {recipe_csv}")
-            else:
-                print(f"Database already contains {food_count} food items, skipping seed")
-        finally:
-            db.close()
-            
-    except Exception as e:
-        print(f"Error during startup: {e}")
-        import traceback
-        print(f"Traceback: {traceback.format_exc()}")
+        logger.info("Database tables ready")
+    except Exception:
+        logger.error("Could not create database tables:\n%s", traceback.format_exc())
         raise
+
+    try:
+        applied = ensure_schema()
+        if applied:
+            logger.info("Applied column migrations: %s", ", ".join(applied))
+    except Exception:
+        logger.error("Could not apply column migrations:\n%s", traceback.format_exc())
+
+    _seed_dataset_if_empty()
     yield
 
 

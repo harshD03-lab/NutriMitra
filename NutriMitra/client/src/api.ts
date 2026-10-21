@@ -3,11 +3,18 @@ const BASE = '/v1'
 async function request(method: string, path: string, body?: unknown, token?: string) {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (token) headers['Authorization'] = `Bearer ${token}`
-  const res = await fetch(`${BASE}${path}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  })
+
+  let res: Response
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    })
+  } catch {
+    throw new Error('Could not reach the NutriMitra server. Check your connection and try again.')
+  }
+
   if (!res.ok) {
     const text = await res.text()
     let detail = ''
@@ -26,6 +33,8 @@ async function request(method: string, path: string, body?: unknown, token?: str
     if (!detail) detail = res.statusText || `HTTP ${res.status}`
     throw new Error(detail)
   }
+
+  if (res.status === 204) return null
   return res.json()
 }
 
@@ -52,6 +61,26 @@ export interface UserProfile {
   activity_level: string | null
   diet_type: string | null
   medical_conditions: string | null
+  allergies: string | null
+}
+
+export type ProfileUpdate = Partial<
+  Pick<
+    UserProfile,
+    | 'name'
+    | 'age'
+    | 'gender'
+    | 'height_cm'
+    | 'weight_kg'
+    | 'activity_level'
+    | 'diet_type'
+    | 'medical_conditions'
+    | 'allergies'
+  >
+>
+
+export function updateProfile(token: string, profile: ProfileUpdate) {
+  return request('PATCH', '/users/me', profile, token) as Promise<UserProfile>
 }
 
 export interface MealItem {
@@ -63,9 +92,17 @@ export interface MealItem {
   fat_g: number
 }
 
+export interface MealTotals {
+  calories: number
+  protein_g: number
+  carbs_g: number
+  fat_g: number
+}
+
 export interface MealPlan {
   meal: string
   items: MealItem[]
+  totals: MealTotals
 }
 
 export interface RecommendationResponse {
@@ -74,6 +111,10 @@ export interface RecommendationResponse {
   total_protein: number
   total_carbs: number
   total_fat: number
+  target_calories: number
+  target_protein_g: number
+  target_carbs_g: number
+  target_fat_g: number
   explanation: string | null
 }
 

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class UserCreate(BaseModel):
@@ -7,11 +7,28 @@ class UserCreate(BaseModel):
     name: str
     age: int | None = None
     gender: str | None = None
-    height_cm: int | None = None
-    weight_kg: int | None = None
+    height_cm: float | None = None
+    weight_kg: float | None = None
     activity_level: str | None = None
     diet_type: str | None = None
     medical_conditions: str | None = None
+    allergies: str | None = None
+
+
+class UserUpdate(BaseModel):
+    """Profile fields a user may change on the dashboard."""
+
+    name: str | None = None
+    age: int | None = None
+    gender: str | None = None
+    height_cm: float | None = None
+    weight_kg: float | None = None
+    activity_level: str | None = None
+    diet_type: str | None = None
+    medical_conditions: str | None = None
+    allergies: str | None = None
+
+    model_config = {"extra": "forbid"}
 
 
 class UserOut(BaseModel):
@@ -20,11 +37,12 @@ class UserOut(BaseModel):
     name: str
     age: int | None = None
     gender: str | None = None
-    height_cm: int | None = None
-    weight_kg: int | None = None
+    height_cm: float | None = None
+    weight_kg: float | None = None
     activity_level: str | None = None
     diet_type: str | None = None
     medical_conditions: str | None = None
+    allergies: str | None = None
 
     model_config = {"from_attributes": True}
 

@@ -1,7 +1,29 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getMe, getRecommendations, getPlans, getPlan, deletePlan } from '../api'
-import type { UserProfile, RecommendationResponse, MealPlan, MealItem, PlanSummary, SavedPlan } from '../api'
+import {
+  getMe,
+  getRecommendations,
+  getPlans,
+  getPlan,
+  deletePlan,
+  updateProfile,
+} from '../api'
+import type {
+  UserProfile,
+  RecommendationResponse,
+  MealPlan,
+  MealItem,
+  PlanSummary,
+  SavedPlan,
+  ProfileUpdate,
+} from '../api'
+import {
+  ACTIVITY_LEVELS,
+  DIET_TYPES,
+  GENDERS,
+  estimateTargets,
+  validateProfile,
+} from '../nutrition'
 import ThaliRing from '../components/ThaliRing'
 
 const MACRO_COLORS = {
@@ -10,64 +32,138 @@ const MACRO_COLORS = {
   fat: 'var(--color-chilli)',
 }
 
+const MEAL_LABELS: Record<string, string> = {
+  Breakfast: 'Breakfast',
+  Lunch: 'Lunch',
+  Dinner: 'Dinner',
+  Snacks: 'Healthy snacks',
+}
+
 export default function DashboardPage() {
   const nav = useNavigate()
   const token = localStorage.getItem('token')
   const [user, setUser] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
+  const [warning, setWarning] = useState('')
   const [plan, setPlan] = useState<RecommendationResponse | null>(null)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState('')
+  const [validation, setValidation] = useState('')
   const [savedPlans, setSavedPlans] = useState<PlanSummary[]>([])
   const [viewingPlan, setViewingPlan] = useState<SavedPlan | null>(null)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const loadHistory = (t: string) => {
-    getPlans(t)
-      .then(setSavedPlans)
-      .catch(() => {})
-  }
+  const loadHistory = useCallback(
+    (t: string) => {
+      getPlans(t)
+        .then(setSavedPlans)
+        .catch(() => {})
+    },
+    [],
+  )
 
   useEffect(() => {
-    if (!token) { nav('/'); return }
+    if (!token) {
+      nav('/')
+      return
+    }
     getMe(token)
-      .then(u => { setUser(u); loadHistory(token) })
-      .catch(() => { localStorage.clear(); nav('/') })
+      .then(u => {
+        setUser(u)
+        loadHistory(token)
+      })
+      .catch(() => {
+        localStorage.clear()
+        nav('/')
+      })
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(
+    () => () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+    },
+    [],
+  )
+
   if (loading) return <p className="py-24 text-center text-clay">Loading your plan…</p>
   if (!user) return null
 
+  const profilePayload = (): ProfileUpdate => ({
+    age: user.age,
+    gender: user.gender,
+    height_cm: user.height_cm,
+    weight_kg: user.weight_kg,
+    activity_level: user.activity_level,
+    diet_type: user.diet_type,
+    medical_conditions: user.medical_conditions,
+    allergies: user.allergies,
+  })
+
+  /** Save the profile. Returns false when the server rejected the update. */
+  const persistProfile = async (draft: ProfileUpdate): Promise<boolean> => {
+    if (!token) return false
+    try {
+      const updated = await updateProfile(token, draft)
+      setUser(prev => (prev ? { ...prev, ...updated } : prev))
+      return true
+    } catch {
+      return false
+    }
+  }
+
   const updateField = (field: string, value: string | number | null) => {
-    setUser({ ...user, [field]: value })
-    setMessage('Profile updated — refresh targets with a new plan')
+    setUser(prev => (prev ? { ...prev, [field]: value } : prev))
     setPlan(null)
-    setTimeout(() => setMessage(''), 3000)
+    setValidation('')
+    setMessage('Profile updated — generate a new plan to refresh your targets')
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      void persistProfile({ [field]: value } as ProfileUpdate)
+    }, 600)
   }
 
   const generatePlan = async () => {
-    if (!token) return
-    setGenerating(true)
+    if (!token || !user) return
+    if (generating) return // never send a second request while one is running
+
+    const check = validateProfile(user)
+    if (!check.ok) {
+      setValidation(check.message)
+      setError('')
+      return
+    }
+    setValidation('')
     setError('')
+    setWarning('')
+    setGenerating(true)
+
     try {
-      const profile = {
-        age: user.age,
-        gender: user.gender,
-        height_cm: user.height_cm,
-        weight_kg: user.weight_kg,
-        activity_level: user.activity_level,
-        diet_type: user.diet_type,
-        ...(user.medical_conditions ? { medical_conditions: user.medical_conditions } : {}),
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current)
+        saveTimer.current = null
       }
-      const data = await getRecommendations(token, profile)
+      const saved = await persistProfile(profilePayload())
+      if (!saved) {
+        setWarning(
+          'Your profile could not be saved to the server, so the plan below was built from what is on screen.',
+        )
+      }
+
+      const data = await getRecommendations(token, profilePayload() as Record<string, unknown>)
       setPlan(data)
       setViewingPlan(null)
       loadHistory(token)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to generate plan')
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Could not generate a meal plan. Please try again.',
+      )
     } finally {
+      // The button becomes available again so the user can retry.
       setGenerating(false)
     }
   }
@@ -79,6 +175,7 @@ export default function DashboardPage() {
       setViewingPlan(saved)
       setPlan(null)
       setError('')
+      setValidation('')
     } catch {
       setError('Failed to load saved plan')
     }
@@ -95,29 +192,33 @@ export default function DashboardPage() {
     }
   }
 
-  const canGenerate = user.age !== null && user.age !== undefined && user.age > 0 &&
-    user.gender !== null && user.gender !== undefined && user.gender !== "" &&
-    user.height_cm !== null && user.height_cm !== undefined && user.height_cm > 0 &&
-    user.weight_kg !== null && user.weight_kg !== undefined && user.weight_kg > 0 &&
-    user.activity_level !== null && user.activity_level !== undefined && user.activity_level !== "" &&
-    user.diet_type !== null && user.diet_type !== undefined && user.diet_type !== "";
-  const shownPlan = viewingPlan
+  const shownPlan: RecommendationResponse | null = viewingPlan
     ? {
         meal_plan: viewingPlan.meal_plan,
         total_calories: viewingPlan.total_calories ?? 0,
         total_protein: viewingPlan.total_protein ?? 0,
         total_carbs: viewingPlan.total_carbs ?? 0,
         total_fat: viewingPlan.total_fat ?? 0,
+        target_calories: estimateTargets(user).calories,
+        target_protein_g: estimateTargets(user).protein_g,
+        target_carbs_g: estimateTargets(user).carbs_g,
+        target_fat_g: estimateTargets(user).fat_g,
         explanation: null,
-      } as RecommendationResponse
+      }
     : plan
+
+  const profileCheck = validateProfile(user)
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-10 sm:px-6 relative pb-24">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="font-mono text-[11px] uppercase tracking-widest text-clay">
-            {new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
+            {new Date().toLocaleDateString(undefined, {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+            })}
           </p>
           <h1 className="mt-1 font-display text-3xl font-bold sm:text-4xl">
             Welcome, {user.name.split(' ')[0]}
@@ -131,30 +232,51 @@ export default function DashboardPage() {
         </p>
       )}
 
-      {canGenerate && (
-        <section className="rounded-3xl border border-rim bg-cream p-6 sm:p-8">
-          <TargetsCard user={user} />
-        </section>
-      )}
+      <section className="rounded-3xl border border-rim bg-cream p-6 sm:p-8">
+        <TargetsCard user={user} />
+      </section>
 
       <ProfileCard user={user} updateField={updateField} />
 
-      {canGenerate && (
-        <div className="flex justify-center">
-          <button
-            onClick={generatePlan}
-            disabled={generating}
-            className="cursor-pointer rounded-full bg-saffron px-6 py-3 font-semibold text-white shadow-lg shadow-saffron/30 transition-all hover:bg-saffron-deep hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-40"
+      {/* The button is always visible - a missing profile is reported with a
+          validation message instead of hiding the action. */}
+      <div className="flex flex-col items-center gap-3">
+        <button
+          type="button"
+          onClick={generatePlan}
+          disabled={generating}
+          aria-busy={generating}
+          className="w-full cursor-pointer rounded-full bg-saffron px-6 py-3 font-semibold text-white shadow-lg shadow-saffron/30 transition-all hover:bg-saffron-deep hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+        >
+          {generating ? 'Planning…' : 'Generate My Meal Plan'}
+        </button>
+        {generating && (
+          <p className="font-mono text-xs text-clay">
+            Building your plan from the nutrition dataset…
+          </p>
+        )}
+        {validation && (
+          <p
+            role="alert"
+            className="w-full rounded-xl border border-chilli/30 bg-chilli-soft px-4 py-2.5 text-sm text-chilli"
           >
-            {generating ? 'Planning…' : 'Generate My Meal Plan'}
-          </button>
-        </div>
-      )}
+            {validation}
+          </p>
+        )}
+        {warning && (
+          <p
+            role="status"
+            className="w-full rounded-xl border border-saffron/40 bg-saffron-soft px-4 py-2.5 text-sm text-saffron-deep"
+          >
+            {warning}
+          </p>
+        )}
+      </div>
 
       <section className="rounded-3xl border border-rim bg-cream p-6 sm:p-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-display text-2xl font-bold">Your meal plan</h2>
-          {!canGenerate && (
+          {!profileCheck.ok && (
             <p className="font-mono text-xs text-clay">
               Fill in age, gender, height, weight, activity and diet to build one.
             </p>
@@ -162,18 +284,25 @@ export default function DashboardPage() {
         </div>
 
         {error && (
-          <p className="mt-4 rounded-xl border border-chilli/30 bg-chilli-soft px-4 py-2.5 text-sm text-chilli">
+          <p
+            role="alert"
+            className="mt-4 rounded-xl border border-chilli/30 bg-chilli-soft px-4 py-2.5 text-sm text-chilli"
+          >
             {error}
           </p>
         )}
 
-        {shownPlan && (
+        {shownPlan ? (
           <div className="mt-6 animate-pop">
             {viewingPlan && (
               <p className="mb-4 text-sm text-clay">
                 Viewing a saved plan from {formatDate(viewingPlan.created_at)}{' '}
                 <button
-                  onClick={() => { setViewingPlan(null); setPlan(null) }}
+                  type="button"
+                  onClick={() => {
+                    setViewingPlan(null)
+                    setPlan(null)
+                  }}
                   className="ml-1 cursor-pointer font-semibold text-saffron-deep hover:underline"
                 >
                   Clear
@@ -182,6 +311,15 @@ export default function DashboardPage() {
             )}
             <MealPlanView plan={shownPlan} />
           </div>
+        ) : (
+          !error &&
+          !generating && (
+            <p className="mt-4 font-mono text-sm text-clay">
+              No plan yet — press{' '}
+              <span className="font-semibold text-saffron-deep">Generate My Meal Plan</span>{' '}
+              and your personalised day appears here.
+            </p>
+          )
         )}
       </section>
 
@@ -201,25 +339,20 @@ function formatDate(iso: string | null) {
 }
 
 function TargetsCard({ user }: { user: UserProfile }) {
-  const bmr = user.gender?.toLowerCase() === 'male'
-    ? 10 * (user.weight_kg ?? 0) + 6.25 * (user.height_cm ?? 0) - 5 * (user.age ?? 0) + 5
-    : 10 * (user.weight_kg ?? 0) + 6.25 * (user.height_cm ?? 0) - 5 * (user.age ?? 0) - 161
+  const targets = estimateTargets(user)
+  const proteinCal = targets.protein_g * 4
+  const carbCal = targets.carbs_g * 4
+  const fatCal = targets.fat_g * 9
+  const calories = proteinCal + carbCal + fatCal
 
-  const mult: Record<string, number> = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725, very_active: 1.9 }
-  const tdee = bmr * (mult[user.activity_level ?? ''] || 1.2)
-  const protein = (tdee * 0.2) / 4
-  const carbs = (tdee * 0.55) / 4
-  const fat = (tdee * 0.25) / 9
-
-  const calories = protein * 4 + carbs * 4 + fat * 9
   const segments = [
-    { percent: ((protein * 4) / calories) * 100, color: MACRO_COLORS.protein },
-    { percent: ((carbs * 4) / calories) * 100, color: MACRO_COLORS.carbs },
-    { percent: ((fat * 9) / calories) * 100, color: MACRO_COLORS.fat },
+    { percent: calories > 0 ? (proteinCal / calories) * 100 : 0, color: MACRO_COLORS.protein },
+    { percent: calories > 0 ? (carbCal / calories) * 100 : 0, color: MACRO_COLORS.carbs },
+    { percent: calories > 0 ? (fatCal / calories) * 100 : 0, color: MACRO_COLORS.fat },
   ]
 
   return (
-    <section className="rounded-3xl border border-rim bg-cream p-6 sm:p-8">
+    <section>
       <h2 className="font-display text-2xl font-bold">Today's targets</h2>
       <p className="mt-1 font-mono text-xs text-clay">
         What your body needs today, based on your profile
@@ -229,16 +362,38 @@ function TargetsCard({ user }: { user: UserProfile }) {
           size={200}
           hole={0.46}
           centerLabel="Target"
-          centerValue={`${Math.round(tdee)}`}
+          centerValue={`${Math.round(targets.calories)}`}
           centerUnit="kcal"
           segments={segments}
         />
         <div className="grid flex-1 grid-cols-2 gap-4 sm:grid-cols-3">
-          <NutriStat label="Protein" value={`${Math.round(protein)}`} unit="g" color="text-leaf" dot={MACRO_COLORS.protein} />
-          <NutriStat label="Carbs" value={`${Math.round(carbs)}`} unit="g" color="text-saffron-deep" dot={MACRO_COLORS.carbs} />
-          <NutriStat label="Fat" value={`${Math.round(fat)}`} unit="g" color="text-chilli" dot={MACRO_COLORS.fat} />
+          <NutriStat
+            label="Protein"
+            value={`${Math.round(targets.protein_g)}`}
+            unit="g"
+            color="text-leaf"
+            dot={MACRO_COLORS.protein}
+          />
+          <NutriStat
+            label="Carbs"
+            value={`${Math.round(targets.carbs_g)}`}
+            unit="g"
+            color="text-saffron-deep"
+            dot={MACRO_COLORS.carbs}
+          />
+          <NutriStat
+            label="Fat"
+            value={`${Math.round(targets.fat_g)}`}
+            unit="g"
+            color="text-chilli"
+            dot={MACRO_COLORS.fat}
+          />
         </div>
       </div>
+      <p className="mt-4 font-mono text-[11px] text-clay">
+        Estimated with the Mifflin-St Jeor equation and your activity level. It is a
+        guide, not a medical requirement.
+      </p>
     </section>
   )
 }
@@ -257,7 +412,11 @@ function ProfileCard({
     <section className="rounded-3xl border border-rim bg-cream p-6 sm:p-8">
       <h2 className="font-display text-2xl font-bold">Your profile</h2>
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Field label="Age" value={user.age} onChange={v => updateField('age', v ? Number(v) : null)} />
+        <Field
+          label="Age"
+          value={user.age}
+          onChange={v => updateField('age', v ? Number(v) : null)}
+        />
         <div>
           <FieldLabel>Gender</FieldLabel>
           <select
@@ -266,12 +425,23 @@ function ProfileCard({
             className={`${inputClass} cursor-pointer`}
           >
             <option value="">Select…</option>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
+            {GENDERS.map(g => (
+              <option key={g.value} value={g.value}>
+                {g.label}
+              </option>
+            ))}
           </select>
         </div>
-        <Field label="Height (cm)" value={user.height_cm} onChange={v => updateField('height_cm', v ? Number(v) : null)} />
-        <Field label="Weight (kg)" value={user.weight_kg} onChange={v => updateField('weight_kg', v ? Number(v) : null)} />
+        <Field
+          label="Height (cm)"
+          value={user.height_cm}
+          onChange={v => updateField('height_cm', v ? Number(v) : null)}
+        />
+        <Field
+          label="Weight (kg)"
+          value={user.weight_kg}
+          onChange={v => updateField('weight_kg', v ? Number(v) : null)}
+        />
         <div>
           <FieldLabel>Activity level</FieldLabel>
           <select
@@ -280,11 +450,11 @@ function ProfileCard({
             className={`${inputClass} cursor-pointer`}
           >
             <option value="">Select…</option>
-            <option value="sedentary">Sedentary</option>
-            <option value="light">Light</option>
-            <option value="moderate">Moderate</option>
-            <option value="active">Active</option>
-            <option value="very_active">Very active</option>
+            {ACTIVITY_LEVELS.map(level => (
+              <option key={level.value} value={level.value}>
+                {level.label}
+              </option>
+            ))}
           </select>
         </div>
         <div>
@@ -295,9 +465,11 @@ function ProfileCard({
             className={`${inputClass} cursor-pointer`}
           >
             <option value="">Select…</option>
-            <option value="balanced">Balanced</option>
-            <option value="low-carb">Low-carb</option>
-            <option value="high-protein">High-protein</option>
+            {DIET_TYPES.map(diet => (
+              <option key={diet.value} value={diet.value}>
+                {diet.label}
+              </option>
+            ))}
           </select>
         </div>
         <div className="sm:col-span-2 lg:col-span-3">
@@ -309,7 +481,21 @@ function ProfileCard({
             className={inputClass}
           />
           <p className="mt-1.5 font-mono text-[11px] text-clay">
-            Foods clashing with these are hard-filtered out of every plan.
+            Foods clashing with these are hard-filtered out of every plan. General
+            guidance only — always follow your own doctor's advice.
+          </p>
+        </div>
+        <div className="sm:col-span-2 lg:col-span-3">
+          <FieldLabel>Allergies / foods to avoid</FieldLabel>
+          <input
+            value={user.allergies || ''}
+            onChange={e => updateField('allergies', e.target.value || null)}
+            placeholder="e.g. peanut, milk, egg"
+            className={inputClass}
+          />
+          <p className="mt-1.5 font-mono text-[11px] text-clay">
+            Matching dishes are removed from your plan. The dataset has no full
+            ingredient list, so always double-check a dish before eating it.
           </p>
         </div>
       </div>
@@ -317,7 +503,11 @@ function ProfileCard({
   )
 }
 
-function Field({ label, value, onChange }: {
+function Field({
+  label,
+  value,
+  onChange,
+}: {
   label: string
   value: string | number | null
   onChange: (v: string) => void
@@ -342,7 +532,13 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
-function NutriStat({ label, value, unit, color, dot }: {
+function NutriStat({
+  label,
+  value,
+  unit,
+  color,
+  dot,
+}: {
   label: string
   value: string
   unit: string
@@ -365,6 +561,20 @@ function NutriStat({ label, value, unit, color, dot }: {
   )
 }
 
+/** Describes how the generated meals relate to the estimated target. */
+function coverageNote(actual: number, target: number) {
+  if (!target || target <= 0) return ''
+  const percent = Math.round((actual / target) * 100)
+  if (actual === 0) return 'No calories were calculated for this plan.'
+  if (percent >= 90 && percent <= 110) {
+    return `The generated meals provide ${Math.round(actual)} kcal — right around your estimated target of ${Math.round(target)} kcal.`
+  }
+  if (percent < 90) {
+    return `The generated meals provide ${Math.round(actual)} kcal — about ${percent}% of your estimated target of ${Math.round(target)} kcal. Add a little more to close the gap.`
+  }
+  return `The generated meals provide ${Math.round(actual)} kcal — about ${percent}% of your estimated target of ${Math.round(target)} kcal. Trim a portion or a snack to come closer.`
+}
+
 function MealPlanView({ plan }: { plan: RecommendationResponse }) {
   const proteinCal = plan.total_protein * 4
   const carbCal = plan.total_carbs * 4
@@ -372,32 +582,98 @@ function MealPlanView({ plan }: { plan: RecommendationResponse }) {
   const cal = Math.max(plan.total_calories, proteinCal + carbCal + fatCal)
 
   const segments = [
-    { percent: (proteinCal / cal) * 100, color: MACRO_COLORS.protein },
-    { percent: (carbCal / cal) * 100, color: MACRO_COLORS.carbs },
-    { percent: (fatCal / cal) * 100, color: MACRO_COLORS.fat },
+    { percent: cal > 0 ? (proteinCal / cal) * 100 : 0, color: MACRO_COLORS.protein },
+    { percent: cal > 0 ? (carbCal / cal) * 100 : 0, color: MACRO_COLORS.carbs },
+    { percent: cal > 0 ? (fatCal / cal) * 100 : 0, color: MACRO_COLORS.fat },
   ]
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-10">
-        <ThaliRing
-          size={160}
-          hole={0.46}
-          centerLabel="Plan"
-          centerValue={`${Math.round(plan.total_calories)}`}
-          centerUnit="kcal"
-          segments={segments}
-        />
-        <ul className="space-y-2">
-          <LegendRow dot={MACRO_COLORS.protein} label="Protein" value={`${plan.total_protein.toFixed(1)} g`} />
-          <LegendRow dot={MACRO_COLORS.carbs} label="Carbs" value={`${plan.total_carbs.toFixed(1)} g`} />
-          <LegendRow dot={MACRO_COLORS.fat} label="Fat" value={`${plan.total_fat.toFixed(1)} g`} />
-        </ul>
+      <div className="rounded-2xl border border-rim bg-paper p-5">
+        <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-clay">
+          Daily nutrition summary
+        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-10">
+          <ThaliRing
+            size={160}
+            hole={0.46}
+            centerLabel="Meals"
+            centerValue={`${Math.round(plan.total_calories)}`}
+            centerUnit="kcal"
+            segments={segments}
+          />
+          <div className="grid flex-1 grid-cols-2 gap-4 sm:grid-cols-3">
+            <NutriStat
+              label="Daily target"
+              value={`${Math.round(plan.target_calories)}`}
+              unit="kcal"
+              color="text-ink"
+              dot="var(--color-clay)"
+            />
+            <NutriStat
+              label="Meals give"
+              value={`${Math.round(plan.total_calories)}`}
+              unit="kcal"
+              color="text-saffron-deep"
+              dot="var(--color-saffron)"
+            />
+            <NutriStat
+              label="Protein"
+              value={`${plan.total_protein.toFixed(1)}`}
+              unit="g"
+              color="text-leaf"
+              dot={MACRO_COLORS.protein}
+            />
+            <NutriStat
+              label="Carbs"
+              value={`${plan.total_carbs.toFixed(1)}`}
+              unit="g"
+              color="text-saffron-deep"
+              dot={MACRO_COLORS.carbs}
+            />
+            <NutriStat
+              label="Fat"
+              value={`${plan.total_fat.toFixed(1)}`}
+              unit="g"
+              color="text-chilli"
+              dot={MACRO_COLORS.fat}
+            />
+          </div>
+        </div>
+        <p className="mt-4 font-mono text-[11px] text-clay">
+          {coverageNote(plan.total_calories, plan.target_calories)}
+        </p>
+        {plan.target_calories > 0 && (
+          <p className="mt-1 font-mono text-[11px] text-clay">
+            Target macros: {plan.target_protein_g} g protein · {plan.target_carbs_g} g
+            carbs · {plan.target_fat_g} g fat.
+          </p>
+        )}
       </div>
 
       {plan.meal_plan.map(slot => (
         <MealSlotCard key={slot.meal} slot={slot} />
       ))}
+
+      <div className="rounded-2xl border border-rim bg-paper p-5">
+        <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-clay">
+          Daily totals from the foods above
+        </p>
+        <div className="mt-3 flex flex-wrap gap-x-8 gap-y-2 font-mono text-sm text-ink">
+          <span>
+            <span className="text-clay">Calories</span> {plan.total_calories.toFixed(1)} kcal
+          </span>
+          <span>
+            <span className="text-clay">Protein</span> {plan.total_protein.toFixed(1)} g
+          </span>
+          <span>
+            <span className="text-clay">Carbs</span> {plan.total_carbs.toFixed(1)} g
+          </span>
+          <span>
+            <span className="text-clay">Fat</span> {plan.total_fat.toFixed(1)} g
+          </span>
+        </div>
+      </div>
 
       {plan.explanation && (
         <div className="rounded-2xl border border-rim bg-paper p-5">
@@ -418,29 +694,27 @@ function MealPlanView({ plan }: { plan: RecommendationResponse }) {
   )
 }
 
-function LegendRow({ dot, label, value }: { dot: string; label: string; value: string }) {
-  return (
-    <li className="flex items-center gap-2.5 text-sm">
-      <span className="h-3 w-3 rounded-full" style={{ background: dot }} />
-      <span className="text-clay">{label}</span>
-      <span className="font-mono font-semibold text-ink">{value}</span>
-    </li>
-  )
-}
-
 function MealSlotCard({ slot }: { slot: MealPlan }) {
+  const totals = slot.totals ?? {
+    calories: slot.items.reduce((s, i) => s + i.calories, 0),
+    protein_g: slot.items.reduce((s, i) => s + i.protein_g, 0),
+    carbs_g: slot.items.reduce((s, i) => s + i.carbs_g, 0),
+    fat_g: slot.items.reduce((s, i) => s + i.fat_g, 0),
+  }
+
   return (
     <div className="overflow-hidden rounded-2xl border border-rim">
       <div className="flex items-center justify-between bg-paper px-5 py-3">
         <h3 className="font-display text-base font-bold text-saffron-deep">
-          {slot.meal}
+          {MEAL_LABELS[slot.meal] ?? slot.meal}
         </h3>
         <span className="font-mono text-xs text-clay">
-          {slot.items.reduce((s, i) => s + i.calories, 0).toFixed(0)} kcal
+          {totals.calories.toFixed(0)} kcal · P {totals.protein_g.toFixed(1)} g · C{' '}
+          {totals.carbs_g.toFixed(1)} g · F {totals.fat_g.toFixed(1)} g
         </span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[520px] text-sm">
           <thead className="text-left font-mono text-[11px] uppercase tracking-wider text-clay">
             <tr>
               <th className="px-5 py-2.5 font-semibold">Food</th>
@@ -452,8 +726,25 @@ function MealSlotCard({ slot }: { slot: MealPlan }) {
           </thead>
           <tbody>
             {slot.items.map((item, i) => (
-              <FoodRow key={i} item={item} />
+              <FoodRow key={`${item.food_name}-${i}`} item={item} />
             ))}
+            <tr className="border-t-2 border-rim bg-paper font-mono text-xs">
+              <td className="px-5 py-2.5 font-semibold uppercase tracking-wider text-clay">
+                Meal total
+              </td>
+              <td className="px-5 py-2.5 text-right font-semibold">
+                {totals.calories.toFixed(0)}
+              </td>
+              <td className="px-5 py-2.5 text-right font-semibold">
+                {totals.protein_g.toFixed(1)}
+              </td>
+              <td className="px-5 py-2.5 text-right font-semibold">
+                {totals.carbs_g.toFixed(1)}
+              </td>
+              <td className="px-5 py-2.5 text-right font-semibold">
+                {totals.fat_g.toFixed(1)}
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -495,7 +786,10 @@ function HistorySection({
       ) : (
         <ul className="mt-4 divide-y divide-rim">
           {plans.map(p => (
-            <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 py-3.5">
+            <li
+              key={p.id}
+              className="flex flex-wrap items-center justify-between gap-3 py-3.5"
+            >
               <div className="flex items-center gap-4">
                 <span className="grid h-11 w-11 place-items-center rounded-full bg-saffron-soft font-display text-sm font-bold text-saffron-deep">
                   {p.item_count}
@@ -503,18 +797,21 @@ function HistorySection({
                 <div>
                   <p className="font-semibold">{formatDate(p.created_at)}</p>
                   <p className="font-mono text-xs text-clay">
-                    {p.total_calories ?? 0} kcal · P {p.total_protein ?? 0} · C {p.total_carbs ?? 0} · F {p.total_fat ?? 0}
+                    {p.total_calories ?? 0} kcal · P {p.total_protein ?? 0} · C{' '}
+                    {p.total_carbs ?? 0} · F {p.total_fat ?? 0}
                   </p>
                 </div>
               </div>
               <div className="flex gap-2">
                 <button
+                  type="button"
                   onClick={() => onOpen(p.id)}
                   className="cursor-pointer rounded-full bg-saffron px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-saffron-deep"
                 >
                   View
                 </button>
                 <button
+                  type="button"
                   onClick={() => onDelete(p.id)}
                   className="cursor-pointer rounded-full border border-chilli/30 px-4 py-1.5 text-sm font-medium text-chilli transition-colors hover:bg-chilli-soft"
                 >

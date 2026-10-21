@@ -25,6 +25,7 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
         activity_level=payload.activity_level,
         diet_type=payload.diet_type,
         medical_conditions=payload.medical_conditions,
+        allergies=payload.allergies,
     )
     db.add(user)
     db.commit()

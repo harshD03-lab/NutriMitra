@@ -13,6 +13,8 @@ class FoodItem(Base):
     protein_g = Column(Float, nullable=True)
     carbs_g = Column(Float, nullable=True)
     fat_g = Column(Float, nullable=True)
+    sugar_g = Column(Float, nullable=True)
+    sodium_mg = Column(Float, nullable=True)
     fiber_g = Column(Float, nullable=True)
     calcium_mg = Column(Float, nullable=True)
     iron_mg = Column(Float, nullable=True)

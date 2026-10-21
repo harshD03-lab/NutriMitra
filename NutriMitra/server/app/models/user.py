@@ -17,4 +17,5 @@ class User(Base):
     activity_level = Column(String, nullable=True)
     diet_type = Column(String, nullable=True)
     medical_conditions = Column(String, nullable=True)
+    allergies = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)

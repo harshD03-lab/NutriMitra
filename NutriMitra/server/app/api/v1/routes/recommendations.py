@@ -1,58 +1,72 @@
 import json
-from datetime import datetime
+import logging
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.v1.routes.users import get_current_user
 from app.core.database import get_db
+from app.ml.explainability import explain_item
+from app.ml.hard_filter import (
+    UnsupportedDietTypeError,
+    filter_foods,
+    normalise_diet_type,
+)
+from app.ml.nutrient_engine import NutrientCalculationError, derive_nutrient_targets
+from app.ml.plan_builder import build_meal_plan
 from app.models.diet_plan import DietPlan
 from app.models.food_item import FoodItem
 from app.models.user import User
 from app.schemas.recommendation import (
-    MealItem,
-    MealPlan,
     RecommendationResponse,
     UserProfile,
 )
-from app.ml.explainability import explain_recommendation
-from app.ml.hard_filter import hard_filter
-from app.ml.knn_recommender import KNNRecommender
-from app.ml.nutrient_engine import derive_nutrient_targets
+
+logger = logging.getLogger("nutrimitra")
 
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 
-MEAL_CATEGORY_MAP: dict[str, str] = {
-    "breakfast": "breakfast",
-    "cereal": "breakfast",
-    "milk": "breakfast",
-    "dairy": "breakfast",
-    "eggs": "breakfast",
-    "grains": "lunch",
-    "pulses": "lunch",
-    "rice": "lunch",
-    "vegetables": "lunch",
-    "meat": "lunch",
-    "fish": "lunch",
-    "poultry": "lunch",
-    "legumes": "lunch",
-    "snacks": "snacks",
-    "fried": "snacks",
-    "beverages": "snacks",
-    "fruits": "snacks",
-    "desserts": "snacks",
-    "sweets": "snacks",
-    "soup": "dinner",
-    "salad": "dinner",
-    "bread": "dinner",
-    "roti": "dinner",
-}
-
-MEAL_SLOTS = ["breakfast", "lunch", "snacks", "dinner"]
+# Profile fields that must be known before a plan can be built.  The label is
+# what the user sees on the dashboard.
+REQUIRED_PROFILE_FIELDS: list[tuple[str, str]] = [
+    ("age", "age"),
+    ("gender", "gender"),
+    ("height_cm", "height"),
+    ("weight_kg", "weight"),
+    ("activity_level", "activity level"),
+    ("diet_type", "diet type"),
+]
 
 
-def _resolve(value, fallback, default):
-    return value if value is not None else (fallback if fallback is not None else default)
+def _effective_profile(profile: UserProfile, current: User) -> dict:
+    """Merge the requested profile with the stored one."""
+    return {
+        "age": profile.age if profile.age is not None else current.age,
+        "gender": profile.gender if profile.gender is not None else current.gender,
+        "height_cm": (
+            profile.height_cm if profile.height_cm is not None else current.height_cm
+        ),
+        "weight_kg": (
+            profile.weight_kg if profile.weight_kg is not None else current.weight_kg
+        ),
+        "activity_level": (
+            profile.activity_level
+            if profile.activity_level is not None
+            else current.activity_level
+        ),
+        "diet_type": (
+            profile.diet_type if profile.diet_type is not None else current.diet_type
+        ),
+        "medical_conditions": (
+            profile.medical_conditions
+            if profile.medical_conditions is not None
+            else current.medical_conditions
+        ),
+        "allergies": (
+            profile.allergies if profile.allergies is not None else current.allergies
+        ),
+    }
 
 
 @router.post("/", response_model=RecommendationResponse)
@@ -61,87 +75,107 @@ def generate_plan(
     current: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    effective = _effective_profile(profile, current)
+
+    missing = [
+        label
+        for field, label in REQUIRED_PROFILE_FIELDS
+        if effective.get(field) in (None, "")
+    ]
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Missing required profile details: "
+                + ", ".join(missing)
+                + ". Fill them in on the dashboard and try again."
+            ),
+        )
+
+    try:
+        diet_rule = normalise_diet_type(effective["diet_type"])
+    except UnsupportedDietTypeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    try:
+        targets = derive_nutrient_targets(
+            weight_kg=effective["weight_kg"],
+            height_cm=effective["height_cm"],
+            age=effective["age"],
+            gender=effective["gender"],
+            activity_level=effective["activity_level"],
+            diet_type=effective["diet_type"],
+        )
+    except NutrientCalculationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     foods = db.query(FoodItem).all()
     if not foods:
-        return RecommendationResponse(
-            meal_plan=[],
-            total_calories=0,
-            total_protein=0,
-            total_carbs=0,
-            total_fat=0,
-            explanation="No food data available. Import the ICMR-NIN dataset first.",
+        logger.error("Meal plan requested but the food_items table is empty")
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "The nutrition dataset is not loaded on this server, so no meal "
+                "plan can be built. Set DATA_DIR to the folder that contains the "
+                "dataset CSV files and restart the service."
+            ),
         )
 
-    targets = derive_nutrient_targets(
-        weight_kg=_resolve(profile.weight_kg, current.weight_kg, 70),
-        height_cm=_resolve(profile.height_cm, current.height_cm, 170),
-        age=_resolve(profile.age, current.age, 30),
-        gender=_resolve(profile.gender, current.gender, "male"),
-        activity_level=_resolve(profile.activity_level, current.activity_level, "sedentary"),
-        diet_type=_resolve(profile.diet_type, current.diet_type, "balanced"),
+    filter_result = filter_foods(
+        foods,
+        diet_type=effective["diet_type"],
+        allergies=effective["allergies"],
+        conditions=effective["medical_conditions"],
     )
-
-    conditions = _resolve(profile.medical_conditions, current.medical_conditions, None)
-    filtered_foods = hard_filter(foods, conditions)
+    filtered_foods = filter_result["foods"]
 
     if not filtered_foods:
-        return RecommendationResponse(
-            meal_plan=[], total_calories=0, total_protein=0, total_carbs=0, total_fat=0,
-            explanation="No foods match your dietary restrictions.",
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "No foods match your dietary restrictions. Please relax the diet "
+                "type, allergy or medical condition filters and try again."
+            ),
         )
 
-    recommender = KNNRecommender(n_neighbors=min(16, len(filtered_foods)))
-    recommender.fit(filtered_foods)
-    recommended = recommender.recommend(targets, top_k=16)
-
-    if not recommended:
-        return RecommendationResponse(
-            meal_plan=[], total_calories=0, total_protein=0, total_carbs=0, total_fat=0,
-            explanation="Could not generate recommendations from available foods.",
+    meal_plan, plan_notes = build_meal_plan(filtered_foods, targets)
+    if not meal_plan:
+        raise HTTPException(
+            status_code=500,
+            detail="The meal plan could not be built from the available foods.",
         )
 
-    grouped: dict[str, list[MealItem]] = {s: [] for s in MEAL_SLOTS}
-    for food in recommended:
-        cat = (food.category or "").lower().strip()
-        slot = "lunch"
-        for keyword, mapped in MEAL_CATEGORY_MAP.items():
-            if keyword in cat:
-                slot = mapped
-                break
-        grouped[slot].append(
-            MealItem(
-                food_name=food.name,
-                serving_size=f"{food.serving_size_g or 100}g",
-                calories=food.energy_kcal or 0,
-                protein_g=food.protein_g or 0,
-                carbs_g=food.carbs_g or 0,
-                fat_g=food.fat_g or 0,
-            )
-        )
+    # Totals are calculated from the same records that are shown to the user.
+    total_calories = round(sum(slot.totals.calories for slot in meal_plan), 1)
+    total_protein = round(sum(slot.totals.protein_g for slot in meal_plan), 1)
+    total_carbs = round(sum(slot.totals.carbs_g for slot in meal_plan), 1)
+    total_fat = round(sum(slot.totals.fat_g for slot in meal_plan), 1)
 
-    meal_plan = [
-        MealPlan(meal=s.capitalize(), items=grouped[s])
-        for s in MEAL_SLOTS
-        if grouped[s]
-    ]
+    explanations = [
+        explain_item(item, targets) for slot in meal_plan for item in slot.items
+    ][:8]
+    notes = list(filter_result["notes"]) + list(plan_notes)
+    explanation = " | ".join(notes + explanations) if (notes or explanations) else None
 
-    explanations = [explain_recommendation(f, targets) for f in recommended[:5]]
-
-    total_calories = round(sum(f.energy_kcal or 0 for f in recommended), 1)
-    total_protein = round(sum(f.protein_g or 0 for f in recommended), 1)
-    total_carbs = round(sum(f.carbs_g or 0 for f in recommended), 1)
-    total_fat = round(sum(f.fat_g or 0 for f in recommended), 1)
-
-    db.add(DietPlan(
+    diet_plan = DietPlan(
         user_id=current.id,
         meal_data=json.dumps([slot.model_dump() for slot in meal_plan]),
         total_calories=total_calories,
         total_protein=total_protein,
         total_carbs=total_carbs,
         total_fat=total_fat,
-        created_at=datetime.utcnow().isoformat(timespec="seconds"),
-    ))
-    db.commit()
+        created_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    )
+    db.add(diet_plan)
+    try:
+        db.commit()
+    except Exception as exc:  # pragma: no cover - defensive
+        db.rollback()
+        logger.error("Could not save the generated meal plan: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail="The meal plan could not be saved, so it was not stored. Please try again.",
+        ) from exc
 
     return RecommendationResponse(
         meal_plan=meal_plan,
@@ -149,5 +183,9 @@ def generate_plan(
         total_protein=total_protein,
         total_carbs=total_carbs,
         total_fat=total_fat,
-        explanation=" | ".join(explanations),
+        target_calories=targets.calories,
+        target_protein_g=targets.protein_g,
+        target_carbs_g=targets.carbs_g,
+        target_fat_g=targets.fat_g,
+        explanation=explanation,
     )

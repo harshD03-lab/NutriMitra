@@ -8,7 +8,7 @@ from app.core.database import get_db
 from app.models.diet_plan import DietPlan
 from app.models.user import User
 from app.schemas.plan import PlanOut, PlanSummary
-from app.schemas.recommendation import MealPlan
+from app.schemas.recommendation import MealPlan, MealTotals
 
 router = APIRouter(prefix="/plans", tags=["plans"])
 
@@ -16,9 +16,25 @@ router = APIRouter(prefix="/plans", tags=["plans"])
 def _load_meal_plan(plan: DietPlan) -> list[MealPlan]:
     try:
         data = json.loads(plan.meal_data)
-        return [MealPlan.model_validate(slot) for slot in data]
     except (ValueError, TypeError):
         return []
+    slots: list[MealPlan] = []
+    for slot in data:
+        try:
+            meal_plan = MealPlan.model_validate(slot)
+        except (ValueError, TypeError):
+            continue
+        # Older plans were saved without per meal totals - recalculate them
+        # from the stored items so the history always matches the plan.
+        if not meal_plan.totals.calories and meal_plan.items:
+            meal_plan.totals = MealTotals(
+                calories=round(sum(item.calories for item in meal_plan.items), 1),
+                protein_g=round(sum(item.protein_g for item in meal_plan.items), 1),
+                carbs_g=round(sum(item.carbs_g for item in meal_plan.items), 1),
+                fat_g=round(sum(item.fat_g for item in meal_plan.items), 1),
+            )
+        slots.append(meal_plan)
+    return slots
 
 
 def _to_summary(plan: DietPlan) -> PlanSummary:

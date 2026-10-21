@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16
+    container_name: nutrimitra-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nutrimitra
+      POSTGRES_USER: nutrimitra
+      POSTGRES_PASSWORD: nutrimitra
+    ports:
+      - "5433:5432"
+    volumes:
+      - nutrimitra_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nutrimitra -d nutrimitra"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  nutrimitra_pgdata:

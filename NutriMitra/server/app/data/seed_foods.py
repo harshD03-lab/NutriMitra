@@ -1,347 +1,352 @@
+"""Import the ICMR-NIN / IFCT nutrition dataset into the database.
+
+The dataset ships with the server package so that a fresh deployment (for
+example on Vercel) can initialise itself without relying on a developer
+machine.  Two food files are used:
+
+``Indian_Food_Nutrition_Processed.csv``
+    IFCT 2017 processed composition data - 1,014 foods, values per 100 g of
+    raw edible portion.  This is the primary source.
+
+``input.csv``
+    ICMR-NIN style list - 89 foods with per-100 g values plus the dataset's
+    own meal and vegetarian markers.
+
+``Indian_Food_Ingredients_Nutrition_CookingMethods.csv``
+    Recipes with ingredients and instructions.  Recipes are optional: if the
+    file is missing the food import still succeeds.
+
+All paths are resolved relative to the installed package (or the
+``DATA_DIR`` environment variable) - never hard coded to a developer machine.
+"""
+
 import csv
-import re
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from app.core.database import Base
+import os
+import sys
+from pathlib import Path
+
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
 from app.models.food_item import FoodItem
 from app.models.recipe import Recipe
 
-COLUMN_ALIASES = {
-    "name": [
-        "name", "dish name", "food", "food name", "food item", "item", "description",
-    ],
-    "category": ["category", "group", "food group", "type", "class"],
-    "energy_kcal": [
-        "energy", "energy_kcal", "kcal", "calories", "energy (kcal)", "calories (kcal)",
-    ],
-    "protein_g": [
-        "protein", "protein_g", "protein (g)",
-    ],
-    "carbs_g": [
-        "carbs", "carbohydrates", "carbs_g", "carbohydrates (g)", "carbs (g)",
-        "cho", "cho (g)",
-    ],
-    "fat_g": [
-        "fat", "fats", "fat_g", "fats (g)", "fat (g)", "total fat", "total fat (g)",
-    ],
-    "fiber_g": [
-        "fiber", "fibre", "fiber_g", "fibre (g)", "fiber (g)", "dietary fiber",
-        "dietary fibre",
-    ],
-    "calcium_mg": [
-        "calcium", "calcium_mg", "calcium (mg)", "ca", "ca (mg)",
-    ],
-    "iron_mg": [
-        "iron", "iron_mg", "iron (mg)", "fe", "fe (mg)",
-    ],
-    "vitamin_c_mg": [
-        "vitamin c", "vitamin_c", "vitamin_c_mg", "vitamin c (mg)",
-        "ascorbic acid", "ascorbic acid (mg)",
-    ],
-    "vitamin_a_mcg": [
-        "vitamin a", "vitamin_a", "vitamin_a_mcg", "vitamin a (mcg)",
-        "retinol", "retinol (mcg)",
-    ],
-    "folate_mcg": [
-        "folate", "folate_mcg", "folate (mcg)", "folate (µg)",
-        "folic acid", "folic acid (mcg)",
-    ],
-    "zinc_mg": [
-        "zinc", "zinc_mg", "zinc (mg)", "zn", "zn (mg)",
-    ],
-    "serving_size_g": [
-        "serving size", "serving_size", "serving_size_g", "portion",
-        "serving size (g)", "weight (g)", "per serving (g)",
-    ],
-    "suitable_for": [
-        "suitable for", "suitable_for", "restrictions", "notes", "remarks",
-    ],
-    "breakfast_flag": [
-        "breakfast",
-    ],
-    "lunch_flag": [
-        "lunch",
-    ],
-    "dinner_flag": [
-        "dinner",
-    ],
-    "is_veg": [
-        "veg", "vegetarian", "non veg", "nonvegetarian", "vegnoveg", "is_veg"
-    ],
-}
+CSV_FOOD_PRIMARY = "Indian_Food_Nutrition_Processed.csv"
+CSV_FOOD_SUPPLEMENT = "input.csv"
+CSV_RECIPES = "Indian_Food_Ingredients_Nutrition_CookingMethods.csv"
 
-# Recipe CSV column aliases
-RECIPE_COLUMN_ALIASES = {
-    "final_food_name": [
-        "recipe_original", "final_food_name", "name", "food_name", "dish", "recipe_name"
-    ],
-    "cuisine": ["cuisine", "region", "cuisine type"],
-    "cooking_time_mins": ["totaltimeinmins", "time", "cooking time", "cooking_time", "total time"],
-    "ingredients": ["translatedingredients", "ingredients", "recipe_ingredients"],
-    "instructions": ["translatedinstructions", "instructions", "recipe_instructions"],
-    "calories_kcal": ["calories (kcal)", "calories", "calorie"],
-    "protein_g": ["protein (g)", "protein", "protein_g"],
-    "carbs_g": ["carbohydrates (g)", "carbs", "carbohydrates", "carbs_g"],
-    "fats_g": ["fats (g)", "fats", "fat", "fat_g"],
-    "fiber_g": ["fibre (g)", "fiber", "fiber_g"],
-    "sodium_mg": ["sodium (mg)", "sodium", "sodium_mg"],
-    "calcium_mg": ["calcium (mg)", "calcium", "calcium_mg"],
-    "iron_mg": ["iron (mg)", "iron", "iron_mg"],
-    "vitamin_c_mg": ["vitamin c (mg)", "vitamin_c", "vitamin c", "vitamin_c_mg"],
-    "folate_mcg": ["folate (µg)", "folate", "folate_mcg", "folic acid"],
-}
+# Serving size the nutrient values are expressed in (per 100 g of raw edible
+# portion for both source files).
+DEFAULT_SERVING_SIZE_G = 100
 
 
-def _normalise(s: str) -> str:
-    return re.sub(r"\s+", " ", s.strip().lower())
+class DatasetError(RuntimeError):
+    """Raised when the nutrition dataset is missing or cannot be parsed."""
 
 
-def _build_col_map(headers: list[str], column_aliases: dict[str, list[str]]) -> dict[str, str]:
-    col_map: dict[str, str] = {}
-    for raw in headers:
-        n = _normalise(raw)
-        for field, aliases in column_aliases.items():
-            if any(n == _normalise(a) or n.startswith(_normalise(a)) for a in aliases):
-                col_map[raw] = field
-                break
-    return col_map
+def candidate_data_dirs() -> list[Path]:
+    """Directories that are searched for the dataset files."""
+    server_dir = Path(__file__).resolve().parents[2]  # app/data -> server
+    dirs = [
+        Path(settings.DATA_DIR) if settings.DATA_DIR else None,
+        server_dir / "data",
+        server_dir,
+        server_dir.parent,
+        server_dir.parent / "data",
+    ]
+    seen: set[str] = set()
+    ordered: list[Path] = []
+    for directory in dirs:
+        if directory is None:
+            continue
+        resolved = str(directory)
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        ordered.append(directory)
+    return ordered
 
 
-def _float(val: str | None) -> float | None:
-    if not val:
-        return None
-    cleaned = re.sub(r"[^\d.−–-]", "", val.replace(",", "").replace("−", "-").replace("–", "-"))
-    try:
-        return float(cleaned) if cleaned else None
-    except ValueError:
-        return None
-
-
-def _int_or_none(val: str | None) -> int | None:
-    if not val:
-        return None
-    cleaned = re.sub(r"[^\d.−–-]", "", val.replace(",", "").replace("−", "-").replace("–", "-"))
-    try:
-        return int(float(cleaned)) if cleaned else None
-    except ValueError:
-        return None
-
-
-def _parse_veg_status(veg_str: str | None) -> bool | None:
-    if not veg_str:
-        return None
-    veg_str = veg_str.strip().lower()
-    # Handle numeric values from CSV (0 or 1)
-    if veg_str in ['0', '1']:
-        return veg_str == '1'  # 1 = True (veg), 0 = False (non-veg)
-    # Handle text values
-    if veg_str in ["veg", "vegetarian", "v", "yes", "true"]:
-        return True
-    elif veg_str in ["non veg", "nonvegetarian", "nv", "no", "false"]:
-        return False
-    # Special case for space (from the CSV) - treat as unknown
-    elif veg_str == ' ':
-        return None
+def find_dataset(filename: str) -> Path | None:
+    """Return the path of a dataset file, or None when it is not present."""
+    for directory in candidate_data_dirs():
+        candidate = directory / filename
+        if candidate.is_file():
+            return candidate
     return None
 
 
-def _parse_meal_type(meal_str: str | None) -> str | None:
-    if not meal_str:
+def _clean_float(value) -> float | None:
+    if value is None:
         return None
-    meal_str = meal_str.strip().lower()
-    # Handle numeric values from CSV (0 or 1 flags)
-    if meal_str in ['0', '1']:
-        # This will be interpreted by the caller based on which column it came from
-        # We'll return the raw value and let the calling code map it to meal type
-        return meal_str
-    # Handle text values
-    meal_mapping = {
-        "breakfast": "breakfast",
-        "lunch": "lunch", 
-        "dinner": "dinner",
-        "snack": "snack",
-        "snacks": "snack",
-        "appetizer": "appetizer",
-    }
-    return meal_mapping.get(meal_str, None)
-
-
-def load_icmr_data(csv_path: str, db_path: str) -> tuple[int, int]:
-    import os
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-    from app.core.database import Base
-    
-    # Handle both sqlite:/// prefixed paths and raw file paths
-    if db_path.startswith("sqlite:///"):
-        connection_string = db_path
-    else:
-        # Make sure we have an absolute path for the file
-        if not os.path.isabs(db_path):
-            db_path = os.path.abspath(db_path)
-        connection_string = f"sqlite:///{db_path}"
-    engine = create_engine(connection_string)
-    Base.metadata.create_all(bind=engine)
-    SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
-    db = SessionLocal()
-    
-    count = 0
-    recipe_count = 0
-    
+    text = str(value).strip().replace(",", "").replace("–", "-").replace("−", "-")
+    if not text:
+        return None
     try:
-        # Load food items
-        with open(csv_path, encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f)
-            if not reader.fieldnames:
-                print("No headers found in CSV")
-                return 0, 0
-            col_map = _build_col_map(reader.fieldnames, COLUMN_ALIASES)
-            missing = set(COLUMN_ALIASES.keys()) - set(col_map.values())
-            if "name" not in col_map.values():
-                print("ERROR: no 'name' column found in CSV headers")
-                print(f"  Headers: {reader.fieldnames}")
-                return 0, 0
-            if missing:
-                print(f"Note: missing columns -> {', '.join(sorted(missing))}")
+        number = float(text)
+    except ValueError:
+        return None
+    return number
 
-            for row in reader:
-                mapped: dict[str, str] = {}
-                for csv_col, model_col in col_map.items():
-                    mapped[model_col] = row.get(csv_col, "").strip()
-                
-                # Parse special fields
-                veg_status = _parse_veg_status(mapped.get("is_veg"))
-                
-                # Parse meal type from the individual flags (Breakfast, Lunch, Dinner columns)
-                meal_type = None
-                breakfast_val = mapped.get("breakfast_flag")
-                lunch_val = mapped.get("lunch_flag")
-                dinner_val = mapped.get("dinner_flag")
-                
-                # Check which meal type flags are set to "1" (priority: breakfast > lunch > dinner)
-                if breakfast_val == "1":
-                    meal_type = "breakfast"
-                elif lunch_val == "1":
-                    meal_type = "lunch"
-                elif dinner_val == "1":
-                    meal_type = "dinner"
-                # If none are set to "1", meal_type remains None
-                
-                item = FoodItem(
-                    name=mapped.get("name", ""),
-                    category=mapped.get("category", ""),
-                    energy_kcal=_float(mapped.get("energy_kcal")),
-                    protein_g=_float(mapped.get("protein_g")),
-                    carbs_g=_float(mapped.get("carbs_g")),
-                    fat_g=_float(mapped.get("fat_g")),
-                    fiber_g=_float(mapped.get("fiber_g")),
-                    calcium_mg=_float(mapped.get("calcium_mg")),
-                    iron_mg=_float(mapped.get("iron_mg")),
-                    vitamin_c_mg=_float(mapped.get("vitamin_c_mg")),
-                    vitamin_a_mcg=_float(mapped.get("vitamin_a_mcg")),
-                    folate_mcg=_float(mapped.get("folate_mcg")),
-                    zinc_mg=_float(mapped.get("zinc_mg")),
-                    serving_size_g=_int_or_none(mapped.get("serving_size_g")),
-                    suitable_for=mapped.get("suitable_for", ""),
-                    meal_type=meal_type,
-                    is_veg=veg_status,
-                )
-                db.add(item)
-                count += 1
-                if count % 100 == 0:
-                    db.commit()
-        
-        db.commit()
-        
-        # Load recipe data
-        recipe_csv_path = r"C:\Users\harsh\OneDrive\Documents\ALL Projext\Open code\Diet System\Indian_Food_Ingredients_Nutrition_CookingMethods.csv"
-        with open(recipe_csv_path, encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f)
-            if reader.fieldnames:
-                col_map = _build_col_map(reader.fieldnames, RECIPE_COLUMN_ALIASES)
-                
-                for row in reader:
-                    mapped: dict[str, str] = {}
-                    for csv_col, model_col in col_map.items():
-                        mapped[model_col] = row.get(csv_col, "").strip()
-                    
-                    # Find or create food item
-                    food_name = mapped.get("final_food_name")
-                    if not food_name:
-                        continue
-                        
-                    food_item = db.query(FoodItem).filter(FoodItem.name.ilike(food_name)).first()
-                    
-                    recipe = Recipe(
-                        food_id=food_item.id if food_item else None,
-                        cuisine=mapped.get("cuisine"),
-                        cooking_time_mins=_int_or_none(mapped.get("cooking_time_mins")),
-                        ingredients=mapped.get("ingredients"),
-                        instructions=mapped.get("instructions"),
-                    )
-                    db.add(recipe)
-                    recipe_count += 1
-                    if recipe_count % 50 == 0:
-                        db.commit()
-        
-        db.commit()
-        print(f"Loaded {count} food items and {recipe_count} recipes")
-        return count, recipe_count
-        
-    except Exception as e:
-        db.rollback()
-        print(f"Error: {e}")
-        return 0, 0
+
+def _pick(row: dict, *prefixes: str) -> float | None:
+    """Read the first column whose name starts with one of *prefixes*."""
+    for prefix in prefixes:
+        for key, value in row.items():
+            if key is None:
+                continue
+            if key.strip().lower().startswith(prefix.lower()):
+                return _clean_float(value)
+    return None
+
+
+def _lookup(row: dict, *names: str) -> str:
+    """Read the first column matching one of *names* (case insensitive)."""
+    lowered = {str(k).strip().lower(): v for k, v in row.items() if k is not None}
+    for name in names:
+        if name in lowered:
+            return (lowered[name] or "").strip()
+    return ""
+
+
+def _parse_veg_flag(raw: str) -> bool | None:
+    """Parse the ICMR-NIN ``VegNovVeg`` marker.
+
+    In the source file the column is set to ``1`` for the animal based dishes
+    and ``0`` for everything else, so ``1`` means *non-vegetarian*.  (The
+    previous implementation read it the other way round, which marked chicken
+    and fish as vegetarian.)  A blank value means "unknown".
+    """
+    value = (raw or "").strip().lower()
+    if value == "1":
+        return False
+    if value == "0":
+        return True
+    return None
+
+
+def _parse_meal_flag(raw: str) -> bool:
+    return (raw or "").strip() == "1"
+
+
+def _read_csv(path: Path) -> list[dict]:
+    with path.open(encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        if not reader.fieldnames:
+            raise DatasetError(f"{path.name} has no header row")
+        return list(reader)
+
+
+def _food_from_primary(row: dict) -> FoodItem | None:
+    name = _lookup(row, "dish name", "food_items", "name")
+    if not name:
+        return None
+    return FoodItem(
+        name=name,
+        category=_lookup(row, "category", "food group") or None,
+        energy_kcal=_pick(row, "calories"),
+        protein_g=_pick(row, "protein"),
+        carbs_g=_pick(row, "carbohydrates"),
+        fat_g=_pick(row, "fats", "fat"),
+        sugar_g=_pick(row, "free sugar", "sugar", "sugars"),
+        sodium_mg=_pick(row, "sodium"),
+        fiber_g=_pick(row, "fibre", "fiber"),
+        calcium_mg=_pick(row, "calcium"),
+        iron_mg=_pick(row, "iron"),
+        vitamin_c_mg=_pick(row, "vitamin c"),
+        vitamin_a_mcg=_pick(row, "vitamin a"),
+        folate_mcg=_pick(row, "folate"),
+        zinc_mg=_pick(row, "zinc"),
+        serving_size_g=DEFAULT_SERVING_SIZE_G,
+        meal_type=None,
+        is_veg=None,
+    )
+
+
+def _food_from_supplement(row: dict) -> FoodItem | None:
+    name = _lookup(row, "food_items", "dish name", "name")
+    if not name:
+        return None
+    breakfast = _parse_meal_flag(_lookup(row, "breakfast"))
+    lunch = _parse_meal_flag(_lookup(row, "lunch"))
+    dinner = _parse_meal_flag(_lookup(row, "dinner"))
+    if breakfast:
+        meal_type = "breakfast"
+    elif lunch:
+        meal_type = "lunch"
+    elif dinner:
+        meal_type = "dinner"
+    else:
+        meal_type = None
+    return FoodItem(
+        name=name,
+        category=_lookup(row, "category", "food group") or None,
+        energy_kcal=_pick(row, "calories"),
+        protein_g=_pick(row, "proteins", "protein"),
+        carbs_g=_pick(row, "carbohydrates", "carbs"),
+        fat_g=_pick(row, "fats", "fat"),
+        sugar_g=_pick(row, "sugars", "sugar", "free sugar"),
+        sodium_mg=_pick(row, "sodium"),
+        fiber_g=_pick(row, "fibre", "fiber"),
+        calcium_mg=_pick(row, "calcium"),
+        iron_mg=_pick(row, "iron"),
+        vitamin_c_mg=_pick(row, "vitamin c"),
+        vitamin_a_mcg=_pick(row, "vitamin a"),
+        folate_mcg=_pick(row, "folate"),
+        zinc_mg=_pick(row, "zinc"),
+        serving_size_g=DEFAULT_SERVING_SIZE_G,
+        meal_type=meal_type,
+        is_veg=_parse_veg_flag(_lookup(row, "vegnovveg", "veg")),
+    )
+
+
+def _merge_missing(target: FoodItem, source: FoodItem) -> None:
+    """Copy values that are missing on *target* from *source*."""
+    for field in (
+        "category", "energy_kcal", "protein_g", "carbs_g", "fat_g", "sugar_g",
+        "sodium_mg", "fiber_g", "calcium_mg", "iron_mg", "vitamin_c_mg",
+        "vitamin_a_mcg", "folate_mcg", "zinc_mg",
+    ):
+        if getattr(target, field) in (None, "") and getattr(source, field) not in (None, ""):
+            setattr(target, field, getattr(source, field))
+    if target.meal_type is None and source.meal_type is not None:
+        target.meal_type = source.meal_type
+    if target.is_veg is None and source.is_veg is not None:
+        target.is_veg = source.is_veg
+
+
+def _key(name: str) -> str:
+    return " ".join(name.strip().lower().split())
+
+
+def _import_foods(db: Session, path: Path, builder) -> int:
+    rows = _read_csv(path)
+    if not rows:
+        raise DatasetError(f"{path.name} does not contain any data rows")
+    imported = 0
+    for row in rows:
+        item = builder(row)
+        if item is None or not item.name:
+            continue
+        db.add(item)
+        imported += 1
+    return imported
+
+
+def _deduplicate_foods(db: Session) -> int:
+    """Collapse duplicate food names, keeping the most complete record."""
+    items = db.query(FoodItem).all()
+    by_name: dict[str, FoodItem] = {}
+    duplicates = 0
+    for item in items:
+        key = _key(item.name)
+        if key not in by_name:
+            by_name[key] = item
+            continue
+        keeper = by_name[key]
+        _merge_missing(keeper, item)
+        db.delete(item)
+        duplicates += 1
+    db.commit()
+    return duplicates
+
+
+def _import_recipes(db: Session, path: Path) -> int:
+    rows = _read_csv(path)
+    count = 0
+    for row in rows:
+        name = _lookup(row, "final_food_name", "recipe_original", "name")
+        if not name:
+            continue
+        food = db.query(FoodItem).filter(FoodItem.name == name).first()
+        db.add(
+            Recipe(
+                food_id=food.id if food else None,
+                cuisine=_lookup(row, "cuisine") or None,
+                cooking_time_mins=int(_clean_float(_lookup(row, "totaltimeinmins", "total time")) or 0) or None,
+                ingredients=_lookup(row, "translatedingredients", "ingredients") or None,
+                instructions=_lookup(row, "translatedinstructions", "instructions") or None,
+            )
+        )
+        count += 1
+        if count % 200 == 0:
+            db.commit()
+    db.commit()
+    return count
+
+
+def load_food_dataset(db: Session, include_recipes: bool = True) -> dict:
+    """Import the food dataset (and optionally the recipes) into the database.
+
+    Raises :class:`DatasetError` when the dataset is missing or unusable so
+    that the caller can report a real error instead of an empty plan.
+    """
+    primary = find_dataset(CSV_FOOD_PRIMARY)
+    supplement = find_dataset(CSV_FOOD_SUPPLEMENT)
+    if primary is None and supplement is None:
+        searched = ", ".join(str(d) for d in candidate_data_dirs())
+        raise DatasetError(
+            "Nutrition dataset not found. Expected "
+            f"'{CSV_FOOD_PRIMARY}' or '{CSV_FOOD_SUPPLEMENT}' in one of: {searched}. "
+            "Set DATA_DIR to the folder that contains the dataset files."
+        )
+
+    food_count = 0
+    if primary is not None:
+        food_count += _import_foods(db, primary, _food_from_primary)
+    if supplement is not None:
+        food_count += _import_foods(db, supplement, _food_from_supplement)
+    db.commit()
+
+    if food_count == 0:
+        raise DatasetError(
+            "The nutrition dataset was found but no usable food records could be parsed."
+        )
+
+    duplicates = _deduplicate_foods(db)
+    food_count = db.query(FoodItem).count()
+
+    recipe_count = 0
+    recipes_path = find_dataset(CSV_RECIPES)
+    if include_recipes and recipes_path is not None:
+        if db.query(Recipe).count() == 0:
+            try:
+                recipe_count = _import_recipes(db, recipes_path)
+            except Exception as exc:  # recipes are optional - never fail the food import
+                db.rollback()
+                recipe_count = 0
+                print(f"Warning: recipe import failed ({exc}); foods were still imported")
+
+    return {
+        "foods": food_count,
+        "recipes": recipe_count,
+        "duplicates_removed": duplicates,
+        "sources": [
+            str(p) for p in (primary, supplement) if p is not None
+        ],
+    }
+
+
+def main() -> int:
+    """Manual import entry point: ``python -m app.data.seed_foods``."""
+    from app.core.database import Base, SessionLocal, engine
+
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        result = load_food_dataset(db)
+    except DatasetError as exc:
+        print(f"ERROR: {exc}")
+        return 1
     finally:
         db.close()
+    print(
+        f"Imported {result['foods']} foods "
+        f"({result['duplicates_removed']} duplicates removed) and "
+        f"{result['recipes']} recipes from: {', '.join(result['sources'])}"
+    )
+    return 0
 
 
 if __name__ == "__main__":
-    import sys
-    import os
-
-    # Default paths - use the files in the Diet System folder
-    food_csv = r"C:\Users\harsh\OneDrive\Documents\ALL Projext\Open code\Diet System\input.csv"
-    recipe_csv = r"C:\Users\harsh\OneDrive\Documents\ALL Projext\Open code\Diet System\Indian_Food_Ingredients_Nutrition_CookingMethods.csv"
-    db_path = r"C:\Users\harsh\OneDrive\Documents\ALL Projext\Open code\Diet System\NutriMitra\server\nutrimitra.db"
-    
-    # Use provided path or default
-    path = sys.argv[1] if len(sys.argv) > 1 else food_csv
-    
-    # Check if CSV files exist
-    if not os.path.exists(path):
-        print(f"Error: Food CSV file not found at {path}")
-        sys.exit(1)
-    
-    if not os.path.exists(recipe_csv):
-        print(f"Warning: Recipe CSV file not found at {recipe_csv}")
-        # Don't exit, just continue without recipes
-    
-    if not os.path.exists(db_path):
-        print(f"Error: Database file not found at {db_path}")
-        sys.exit(1)
-    
-    # Run the seeding process
-    food_count, recipe_count = load_icmr_data(path, db_path)
-    print(f"Loaded {food_count} food items and {recipe_count} recipes from {path}")
-    
-    # Show results
-    import sqlite3
-    conn = sqlite3.connect(db_path)
-    c = conn.cursor()
-    
-    c.execute("SELECT COUNT(*) FROM food_items")
-    total_foods = c.fetchone()[0]
-    print(f"Total food items in database: {total_foods}")
-    
-    c.execute("SELECT COUNT(*) FROM recipes")
-    total_recipes = c.fetchone()[0]
-    print(f"Total recipes in database: {total_recipes}")
-    
-    c.execute("SELECT name, meal_type, is_veg FROM food_items WHERE meal_type IS NOT NULL OR is_veg IS NOT NULL ORDER BY name LIMIT 10")
-    sample_data = c.fetchall()
-    print(f"\nSample new data (meal_type, is_veg):")
-    for row in sample_data:
-        print(f"  {row[0]}: meal_type={row[1]}, is_veg={row[2]}")
-    
-    conn.close()
+    sys.exit(main())
